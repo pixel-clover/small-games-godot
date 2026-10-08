@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://games/space_invaders/invaders.gd" id="1_inv"]
+
+[node name="Invaders" type="Node2D"]
+script = ExtResource("1_inv")

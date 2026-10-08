@@ -1,0 +1,17 @@
+[project]
+name = "small-games"
+version = "0.1.0"
+description = "Python environment for the Small Games project"
+
+requires-python = ">=3.11"
+dependencies = [
+    "pre-commit>=4.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "gdtoolkit>=4.0.0",
+]
+
+[tool.uv]
+package = false

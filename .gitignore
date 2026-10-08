@@ -1,0 +1,110 @@
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env/
+env/
+.venv/
+venv/
+
+# Packaging and distribution files
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Dependency directories
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+.installed.cfg
+
+# Test and coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# IDE specific files and directories
+.idea/
+*.iml
+.vscode/
+
+# Jupyter Notebook files
+.ipynb_checkpoints
+
+# Temporary files created by editors and the system and folders to ignore
+*.swp
+*~
+*.bak
+*.tmp
+temp/
+tmp/
+out/
+
+# Database files (SQLite, DuckDB, etc.)
+*.duckdb
+*.db
+*.wal
+*.sqlite
+
+# Godot-specific files
+*.export
+*.import
+
+# Godot 4 cache and build artifacts
+.godot/
+
+# Exported game binaries
+*.exe
+*.apk
+*.zip
+*.tar.gz
+*.app
+*.pck
+
+# System-specific files
+.DS_Store
+Thumbs.db
+
+# User-specific files
+*.cfg
+*.log
+*.swo
+*.swn
+
+# Godot Mono-specific (C# projects)
+mono/
+data_GodotSharp/
+GodotSharp/
+.godot/mono/
+*.csproj
+*.sln
+*.csproj.user
+*.vs/
+
+# Godot generated folders
+*.import/
+*.mono_temp/
+
+
+# Miscellaneous files and directories to ignore
+# Add any additional file patterns a directory names that should be ignored down here
+multiplayer-bomber-demo/

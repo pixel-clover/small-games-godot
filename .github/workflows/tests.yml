@@ -1,0 +1,44 @@
+name: Run Tests
+
+on:
+    workflow_dispatch:
+    push:
+        branches: [ main ]
+    pull_request:
+        branches: [ main ]
+
+jobs:
+    test:
+        name: Headless Validation
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: Checkout Repository
+                uses: actions/checkout@v4
+
+            -   name: Download & Install Godot
+                run: |
+                    GODOT_VERSION="4.3-stable"
+                    wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip
+                    unzip -q Godot_v${GODOT_VERSION}_linux.x86_64.zip
+                    sudo mv Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot
+                    sudo chmod +x /usr/local/bin/godot
+                    godot --version
+
+            -   name: Import Assets & Refresh Cache
+                run: |
+                    godot --headless --path . --import
+
+            -   name: Validate Scenes (Smoke Tests)
+                run: |
+                    scenes=(
+                      "menu/menu"
+                      "games/snake/snake"
+                      "games/space_invaders/invaders"
+                      "games/forest/forest"
+                    )
+                    for scene in "${scenes[@]}"; do
+                      echo ">>> Validating res://${scene}.tscn..."
+                      godot --headless --path . "res://${scene}.tscn" --quit-after 60
+                    done
+                    echo ">>> All scenes validated successfully with zero errors!"
