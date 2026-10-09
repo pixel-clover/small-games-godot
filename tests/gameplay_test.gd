@@ -31,14 +31,67 @@ func _event(action: String) -> InputEventAction:
     return event
 
 
+func _button(button: JoyButton, pressed: bool = true, device: int = 0) -> InputEventJoypadButton:
+    var event := InputEventJoypadButton.new()
+    event.button_index = button
+    event.pressed = pressed
+    event.device = device
+    return event
+
+
+func _motion(axis: JoyAxis, value: float) -> InputEventJoypadMotion:
+    var event := InputEventJoypadMotion.new()
+    event.axis = axis
+    event.axis_value = value
+    return event
+
+
+func _send(event: InputEvent) -> void:
+    Input.parse_input_event(event)
+    Input.flush_buffered_events()
+
+
 func _run() -> void:
+    for binding in [
+        ["ui_accept", JOY_BUTTON_A],
+        ["ui_cancel", JOY_BUTTON_B],
+        ["pause", JOY_BUTTON_START],
+        ["wrap_mode", JOY_BUTTON_X],
+        ["journal", JOY_BUTTON_X],
+        ["run", JOY_BUTTON_RIGHT_SHOULDER],
+        ["advance_time", JOY_BUTTON_Y]
+    ]:
+        _check(
+            _button(binding[1], true, 1).is_action_pressed(binding[0]),
+            "Controller bindings must work on any connected device: " + str(binding[0])
+        )
+    for binding in [
+        ["ui_accept", KEY_ENTER],
+        ["ui_accept", KEY_KP_ENTER],
+        ["ui_accept", KEY_SPACE],
+        ["ui_cancel", KEY_ESCAPE],
+        ["pause", KEY_P],
+        ["wrap_mode", KEY_W],
+        ["journal", KEY_J],
+        ["run", KEY_SHIFT],
+        ["advance_time", KEY_T]
+    ]:
+        var key := InputEventKey.new()
+        key.keycode = binding[1]
+        key.pressed = true
+        _check(
+            key.is_action_pressed(binding[0]),
+            "Keyboard bindings must remain available: " + str(binding[0])
+        )
     var snake := SnakeGame.new()
     root.add_child(snake)
     snake.set_process(false)
     snake.wrap = false
     snake.food = Vector2i(30, 20)
-    snake._unhandled_input(_event("ui_down"))
-    snake._unhandled_input(_event("ui_right"))
+    snake._unhandled_input(_motion(JOY_AXIS_LEFT_Y, 0.1))
+    _check(not snake.started and snake.turns.is_empty(), "Stick drift must not start Snake.")
+    snake._unhandled_input(_button(JOY_BUTTON_DPAD_DOWN))
+    snake._unhandled_input(_button(JOY_BUTTON_DPAD_RIGHT))
     _check(snake.turns == [Vector2i.DOWN, Vector2i.RIGHT], "Both fast turns must be retained.")
     snake.queue_turn(Vector2i.UP)
     _check(snake.turns.size() == 2, "The input buffer must remain bounded.")
@@ -55,6 +108,13 @@ func _run() -> void:
     snake.queue_turn(Vector2i.UP)
     _check(snake.turns == [Vector2i.DOWN], "Reversal against a queued turn must be rejected.")
     snake.turns.clear()
+    snake._unhandled_input(_motion(JOY_AXIS_LEFT_Y, 0.9))
+    _check(snake.turns == [Vector2i.DOWN], "The left stick must queue a Snake turn.")
+    snake.turns.clear()
+    snake._unhandled_input(_button(JOY_BUTTON_START))
+    _check(snake.paused, "Start must pause Snake.")
+    snake._unhandled_input(_button(JOY_BUTTON_START))
+    _check(not snake.paused, "Start must resume Snake.")
     snake.rocks = [snake.snake[0] + Vector2i.UP]
     snake.near_rewarded = false
     snake._reward_near_miss()
@@ -102,21 +162,36 @@ func _run() -> void:
         snake.turns.is_empty() and snake.final_score == 0 and snake.death_freeze == 0,
         "Restart must clear buffered inputs and death feedback."
     )
+    var original_wrap: bool = snake.wrap
+    snake._unhandled_input(_button(JOY_BUTTON_X))
+    _check(snake.wrap != original_wrap, "X must toggle Snake wrap mode before a run.")
+    snake._unhandled_input(_button(JOY_BUTTON_X))
     snake.free()
 
     var invaders := InvadersGame.new()
     root.add_child(invaders)
     invaders.set_process(false)
-    invaders.start_game()
+    invaders._unhandled_input(_button(JOY_BUTTON_A))
+    _check(invaders.state == InvadersGame.State.INTRO, "A must start Invaders.")
     invaders.state = InvadersGame.State.PLAYING
-    Input.action_press("ui_accept")
+    invaders._unhandled_input(_button(JOY_BUTTON_START))
+    _check(invaders.paused, "Start must pause Invaders.")
+    invaders._unhandled_input(_button(JOY_BUTTON_START))
+    _send(_button(JOY_BUTTON_A))
     invaders._player_fire()
-    Input.action_release("ui_accept")
+    _send(_button(JOY_BUTTON_A, false))
     _check(
         invaders.recoil_left > 0.0 and invaders.muzzle_frames == 1,
         "Firing must trigger recoil and a one-frame muzzle flash."
     )
     invaders.pbullets.clear()
+    _send(_motion(JOY_AXIS_LEFT_X, 0.1))
+    _check(Input.get_axis("ui_left", "ui_right") == 0.0, "Stick drift must not move Invaders.")
+    _send(_motion(JOY_AXIS_LEFT_X, 0.9))
+    var player_x: float = invaders.player_x
+    invaders._update_playing(0.01)
+    _check(invaders.player_x > player_x, "The left stick must move the cannon.")
+    _send(_motion(JOY_AXIS_LEFT_X, 0.0))
     var alien := InvadersGame.Alien.new()
     alien.pos = Vector2(300, 160)
     alien.row = 0
@@ -197,6 +272,51 @@ func _run() -> void:
     forest.no_save = true
     root.add_child(forest)
     forest.set_process(false)
+    forest.found_ids.clear()
+    forest.found_counts.clear()
+    _send(_motion(JOY_AXIS_LEFT_X, 0.1))
+    _check(
+        Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down") == Vector2.ZERO,
+        "Stick drift must not move the wanderer."
+    )
+    _send(_motion(JOY_AXIS_LEFT_X, 0.9))
+    _send(_button(JOY_BUTTON_RIGHT_SHOULDER))
+    forest._move(0.1)
+    _check(
+        forest.running and forest.vel.x > 0.0,
+        "The left stick and right shoulder must support Forest running."
+    )
+    _send(_motion(JOY_AXIS_LEFT_X, 0.0))
+    _send(_button(JOY_BUTTON_RIGHT_SHOULDER, false))
+    await process_frame
+    _send(_button(JOY_BUTTON_X))
+    forest._process(0.01)
+    _check(forest.journal_open, "X must open the Forest journal.")
+    _send(_button(JOY_BUTTON_X, false))
+    await process_frame
+    _send(_button(JOY_BUTTON_B))
+    forest._process(0.01)
+    _check(not forest.journal_open, "B must close the journal before leaving Forest.")
+    _send(_button(JOY_BUTTON_B, false))
+    await process_frame
+    forest.journal_amount = 0.0
+    _send(_button(JOY_BUTTON_START))
+    forest._process(0.01)
+    _check(forest.paused, "Start must pause Forest.")
+    _send(_button(JOY_BUTTON_START, false))
+    await process_frame
+    _send(_button(JOY_BUTTON_START))
+    forest._process(0.01)
+    _check(not forest.paused, "Start must resume Forest.")
+    _send(_button(JOY_BUTTON_START, false))
+    await process_frame
+    var time: float = forest.time_of_day
+    _send(_button(JOY_BUTTON_Y))
+    forest._process(0.01)
+    _check(fposmod(forest.time_of_day - time, 1.0) >= 0.1, "Y must advance Forest time.")
+    _send(_button(JOY_BUTTON_Y, false))
+    await process_frame
+    forest.sparks.clear()
     forest.found_ids.clear()
     forest.found_counts.clear()
     forest._discover({"id": "test_shrine", "kind": "shrine", "x": 10.0, "y": 152.0})
@@ -341,18 +461,52 @@ func _test_transitions() -> void:
         change_scene_to_file("res://menu/menu.tscn")
         await process_frame
         await process_frame
-        current_scene.call("_activate", path)
+        var index: int = (
+            [
+                "res://games/forest/forest.tscn",
+                "res://games/snake/snake.tscn",
+                "res://games/space_invaders/invaders.tscn"
+            ]
+            . find(path)
+        )
+        var card: Button = current_scene.get("cards")[index]
+        for i in index:
+            _send(_button(JOY_BUTTON_DPAD_DOWN))
+            _send(_button(JOY_BUTTON_DPAD_DOWN, false))
+            await process_frame
+        _check(card.has_focus(), "The D-pad must select the correct launcher card.")
+        if index == 2:
+            _send(_button(JOY_BUTTON_DPAD_DOWN))
+            _send(_button(JOY_BUTTON_DPAD_DOWN, false))
+            await process_frame
+            var slider := root.gui_get_focus_owner() as HSlider
+            _check(slider != null, "The controller must reach the volume slider.")
+            if slider != null:
+                var volume := slider.value
+                slider.value = 0.5
+                _send(_button(JOY_BUTTON_DPAD_RIGHT))
+                _send(_button(JOY_BUTTON_DPAD_RIGHT, false))
+                _check(slider.value > 0.5, "The D-pad must adjust the volume slider.")
+                slider.value = volume
+                _send(_button(JOY_BUTTON_DPAD_UP))
+                _send(_button(JOY_BUTTON_DPAD_UP, false))
+                await process_frame
+                _check(
+                    card.has_focus(), "The controller must leave the slider and return to a card."
+                )
+        _send(_button(JOY_BUTTON_A))
+        _send(_button(JOY_BUTTON_A, false))
         await create_timer(0.3).timeout
         _check(current_scene.scene_file_path == path, "Launcher must open " + path)
         if path.contains("forest"):
             var container := current_scene.get("container") as SubViewportContainer
             var world := container.get_child(0).get_child(0)
             world.set("no_save", true)
-            Input.action_press("ui_cancel")
+            _send(_button(JOY_BUTTON_B))
             world.call("_process", 1.0 / 60.0)
-            Input.action_release("ui_cancel")
+            _send(_button(JOY_BUTTON_B, false))
         else:
-            current_scene.call("_unhandled_input", _event("ui_cancel"))
+            current_scene.call("_unhandled_input", _button(JOY_BUTTON_B))
         await process_frame
         await process_frame
         _check(

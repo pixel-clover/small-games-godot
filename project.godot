@@ -26,6 +26,37 @@ window/stretch/aspect="expand"
 
 project/assembly_name="Small Games"
 
+[input]
+
+ui_accept={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"keycode":4194309), Object(InputEventKey,"keycode":4194310), Object(InputEventKey,"keycode":32), Object(InputEventJoypadButton,"device":-1,"button_index":0)]
+}
+ui_cancel={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"keycode":4194305), Object(InputEventJoypadButton,"device":-1,"button_index":1)]
+}
+pause={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"keycode":80), Object(InputEventJoypadButton,"device":-1,"button_index":6)]
+}
+wrap_mode={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"keycode":87), Object(InputEventJoypadButton,"device":-1,"button_index":2)]
+}
+journal={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"keycode":74), Object(InputEventJoypadButton,"device":-1,"button_index":2)]
+}
+run={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"keycode":4194325), Object(InputEventJoypadButton,"device":-1,"button_index":10)]
+}
+advance_time={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"keycode":84), Object(InputEventJoypadButton,"device":-1,"button_index":3)]
+}
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

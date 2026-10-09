@@ -222,14 +222,13 @@ func _unhandled_input(event: InputEvent) -> void:
     if event.is_action_pressed("ui_cancel"):
         get_tree().change_scene_to_file("res://menu/menu.tscn")
         return
-    if event is InputEventKey and event.pressed and not event.echo:
-        if event.keycode == KEY_W and (not started or game_over):
-            toggle_wrap()
-            return
-        if event.keycode == KEY_P and started and not game_over:
-            paused = not paused
-            queue_redraw()
-            return
+    if event.is_action_pressed("wrap_mode") and (not started or game_over):
+        toggle_wrap()
+        return
+    if event.is_action_pressed("pause") and started and not game_over:
+        paused = not paused
+        queue_redraw()
+        return
     if game_over:
         if event.is_action_pressed("ui_accept"):
             reset_game()
@@ -471,7 +470,7 @@ func _draw() -> void:
         draw_rect(rect, color)
         if slow_left > 0.0 or double_left > 0.0:
             draw_rect(rect.grow(1.0), Color.MEDIUM_ORCHID if double_left > 0.0
-                else Color.DODGER_BLUE, false, 1.5)
+            else Color.DODGER_BLUE, false, 1.5)
     if sparkle_left > 0.0:
         for k in 6:
             var p := sparkle_pos + Vector2.RIGHT.rotated(k * TAU / 6.0) * \
@@ -479,6 +478,11 @@ func _draw() -> void:
             draw_line(p - Vector2(2, 0), p + Vector2(2, 0), Color(1, 1, 0.6, sparkle_left / 0.35))
     # HUD
     var mode := "Wrap" if wrap else "Walls"
+    var controller := not Input.get_connected_joypads().is_empty()
+    var pause_key := "Start" if controller else "P"
+    var back_key := "B" if controller else "Esc"
+    var wrap_key := "X" if controller else "W"
+    var accept_key := "A" if controller else "Enter"
     draw_string(font, Vector2(8, 20), "Score: %d" % score, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
     draw_string(font, Vector2(0, 20), "Best (%s): %d" % [mode, high_score],
         HORIZONTAL_ALIGNMENT_RIGHT, w - 8, 16)
@@ -504,22 +508,25 @@ func _draw() -> void:
             Color.MEDIUM_ORCHID)
     if not started and not game_over:
         draw_string(font, Vector2(0, h / 2.0 - 50),
-            "Press an arrow key to start  (W: toggle wrap mode)",
+            "Move to start  (%s: toggle wrap mode)" % wrap_key,
             HORIZONTAL_ALIGNMENT_CENTER, w, 20)
-        draw_string(font, Vector2(0, h / 2.0 - 24), "Mode: %s   P: pause   Esc: menu" % mode,
+        draw_string(font, Vector2(0, h / 2.0 - 24),
+            "Mode: %s   %s: pause   %s: menu" % [mode, pause_key, back_key],
             HORIZONTAL_ALIGNMENT_CENTER, w, 16, Color(0.8, 0.8, 0.8))
     if paused:
         draw_rect(Rect2(Vector2.ZERO, GRID * CELL), Color(0, 0, 0, 0.6))
-        draw_string(font, Vector2(0, h / 2.0), "PAUSED - P resume, Esc menu",
+        draw_string(font, Vector2(0, h / 2.0),
+            "PAUSED - %s resume, %s menu" % [pause_key, back_key],
             HORIZONTAL_ALIGNMENT_CENTER, w, 24)
     if game_over and death_freeze == 0:
         draw_rect(Rect2(Vector2.ZERO, GRID * CELL), Color(0, 0, 0, 0.5))
-        draw_string(font, Vector2(0, h / 2.0), "Game Over - press Enter to restart",
+        draw_string(font, Vector2(0, h / 2.0), "Game Over - press %s to restart" % accept_key,
             HORIZONTAL_ALIGNMENT_CENTER, w, 24)
         draw_string(font, Vector2(0, h / 2.0 + 28), "Score: %d" % final_score,
             HORIZONTAL_ALIGNMENT_CENTER, w, 18)
         if new_record:
             draw_string(font, Vector2(0, h / 2.0 + 54), "New record!", HORIZONTAL_ALIGNMENT_CENTER,
                 w, 20, Color.GOLD)
-        draw_string(font, Vector2(0, h / 2.0 + 80), "W: toggle wrap mode (now %s)" % mode,
+        draw_string(font, Vector2(0, h / 2.0 + 80),
+            "%s: toggle wrap mode (now %s)" % [wrap_key, mode],
             HORIZONTAL_ALIGNMENT_CENTER, w, 14, Color(0.8, 0.8, 0.8))

@@ -1,4 +1,5 @@
 extends Control
+
 ## Launcher menu: pick a game, see high scores and set the master volume.
 ## Built in code so the scene stays trivial.
 
@@ -20,13 +21,13 @@ func _ready() -> void:
     sounds = {
         "move": Sfx.build([[660, 880, 0.035, "sine", 0.2]]),
         "launch":
-        Sfx.build(
-            [
-                [523, 523, 0.06, "sine", 0.3],
-                [659, 659, 0.06, "sine", 0.3],
-                [784, 784, 0.09, "sine", 0.3]
-            ]
-        ),
+            Sfx.build(
+                [
+                    [523, 523, 0.06, "sine", 0.3],
+                    [659, 659, 0.06, "sine", 0.3],
+                    [784, 784, 0.09, "sine", 0.3]
+                ]
+            ),
         "cancel": Sfx.build([[440, 220, 0.12, "sine", 0.25]]),
         "volume": Sfx.build([[659, 659, 0.04, "sine", 0.3], [784, 784, 0.06, "sine", 0.3]]),
     }
@@ -93,6 +94,11 @@ func _ready() -> void:
     box.add_child(quit)
     _connect_focus(quit)
     slider.focus_entered.connect(_play.bind("move"))
+    var hint := Label.new()
+    hint.text = "Controller: stick/D-pad select   A launch   B quit"
+    hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    hint.add_theme_font_size_override("font_size", 14)
+    box.add_child(hint)
     first.grab_focus()
 
 
@@ -149,9 +155,9 @@ func _focus(button: Button, focused: bool) -> void:
     focus_tweens[button] = tween
     (
         tween
-        . tween_property(button, "scale", Vector2.ONE * (1.035 if focused else 1.0), 0.2)
-        . set_trans(Tween.TRANS_BACK)
-        . set_ease(Tween.EASE_OUT)
+            .tween_property(button, "scale", Vector2.ONE * (1.035 if focused else 1.0), 0.2)
+            .set_trans(Tween.TRANS_BACK)
+            .set_ease(Tween.EASE_OUT)
     )
 
 

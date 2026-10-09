@@ -201,9 +201,6 @@ var breadcrumb_timer := 0.0
 var cricket_player: AudioStreamPlayer
 var bird_timer := 4.0
 var pluck_timer := 6.0
-var key_t_down := false
-var key_j_down := false
-var key_p_down := false
 
 # Optional screenshot hook: godot ... -- --shot=/tmp/a.png --time=0.3 --x=500
 # extras: --journal --paused --biome=N --spot=kind [--on] --fuel=0.1 --found=1 --shotframe=N
@@ -687,14 +684,10 @@ func _find_special(kind: String) -> Vector2:
 func _process(delta: float) -> void:
     ui_t += delta
     frames += 1
-    var j_down := Input.is_key_pressed(KEY_J)
-    if j_down and not key_j_down and not paused:
+    if Input.is_action_just_pressed("journal") and not paused:
         journal_open = not journal_open
-    key_j_down = j_down
-    var p_down := Input.is_key_pressed(KEY_P)
-    if p_down and not key_p_down and not journal_open:
+    if Input.is_action_just_pressed("pause") and not journal_open:
         paused = not paused
-    key_p_down = p_down
     if Input.is_action_just_pressed("ui_cancel"):
         if journal_open:
             journal_open = false
@@ -706,10 +699,8 @@ func _process(delta: float) -> void:
     if not frozen:
         t += delta
         time_of_day = fposmod(time_of_day + delta / DAY_LENGTH, 1.0)
-        var t_down := Input.is_key_pressed(KEY_T)
-        if t_down and not key_t_down:
+        if Input.is_action_just_pressed("advance_time"):
             time_of_day = fposmod(time_of_day + 0.1, 1.0)
-        key_t_down = t_down
         _update_biome()
         _update_palette()
         if discovery_left > 0.0:
@@ -739,7 +730,7 @@ func _process(delta: float) -> void:
 
 func _move(delta: float) -> void:
     var dir := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-    running = Input.is_key_pressed(KEY_SHIFT)
+    running = Input.is_action_pressed("run")
     var speed := 74.0 if running else 38.0
     var target := Vector2(dir.x * speed, dir.y * speed * 0.55)
     vel = vel.lerp(target, 1.0 - exp(-delta * 10.0))
@@ -1713,10 +1704,14 @@ func _draw_ui() -> void:
     elif paused:
         u.draw_rect(Rect2(0, 0, VW, VH), Color(0.02, 0.03, 0.08, 0.55))
         _txt_c(u, VW / 2.0, VH / 2.0 - 2.0, "PAUSED", Color(1, 0.95, 0.8), 16)
-        _txt_c(u, VW / 2.0, VH / 2.0 + 14.0, "P resume   Esc menu", Color(0.8, 0.88, 1.0))
+        _txt_c(u, VW / 2.0, VH / 2.0 + 14.0,
+            "Start resume   B menu" if not Input.get_connected_joypads().is_empty()
+            else "P resume   Esc menu", Color(0.8, 0.88, 1.0))
     var alpha := hud_alpha
     if alpha > 0.0 and not journal_open:
         var msg := "Arrows walk   Shift run   J journal   P pause   T time   Esc menu"
+        if not Input.get_connected_joypads().is_empty():
+            msg = "Stick/D-pad walk   RB run   X journal   Start pause   Y time   B menu"
         _txt_c(u, VW / 2.0, VH - 6.0, msg, Color(1, 1, 0.9, alpha))
 
 
@@ -1825,5 +1820,7 @@ func _draw_journal(u: Node2D) -> void:
             var hl := _wrap("Hint: " + str(ty["hint"]), 106.0, 8)
             for li in mini(hl.size(), 2):
                 _txt(u, Vector2(tx, y + 25.0 + li * 9.0), hl[li], Color("76634e"))
-    _txt_c(u, VW / 2.0, VH - 12.0, "J close     Esc close", Color("795d40"))
+    _txt_c(u, VW / 2.0, VH - 12.0,
+        "X close     B close" if not Input.get_connected_joypads().is_empty()
+        else "J close     Esc close", Color("795d40"))
     u.draw_set_transform(Vector2.ZERO)

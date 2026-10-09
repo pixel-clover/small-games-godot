@@ -341,7 +341,7 @@ func _unhandled_input(event: InputEvent) -> void:
         else:
             _to_title()
         return
-    if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_P:
+    if event.is_action_pressed("pause"):
         if state == State.PLAYING or state == State.INTRO:
             paused = not paused
             ufo_player.stream_paused = paused
@@ -790,19 +790,24 @@ func _text(text: String, y: float, size: int=20, color:=Color.WHITE) -> void:
 
 
 func _draw() -> void:
+    var controller := not Input.get_connected_joypads().is_empty()
+    var pause_key := "Start" if controller else "P"
+    var back_key := "B" if controller else "Esc"
+    var accept_key := "A" if controller else "Enter"
     draw_rect(Rect2(0, 0, W, H), Color.BLACK)
     for s in stars:
         draw_rect(Rect2(s, Vector2(1, 1)), Color(1, 1, 1, 0.5))
 
     if state == State.TITLE:
         _text("SPACE INVADERS", 170, 40, Color.LIME_GREEN)
-        _text("Arrows: move    Space: fire    P: pause    Esc: back", 250, 16)
+        _text("Stick/D-pad: move    A: fire    Start: pause    B: back" if controller
+        else "Arrows: move    Space: fire    P: pause    Esc: back", 250, 16)
         _text("Power-ups: R rapid fire   S spread shot   B shield", 280, 14, Color.CYAN)
-        _text("Press Enter or Space to start", 330, 22, Color.YELLOW)
+        _text("Press A to start" if controller else "Press Enter or Space to start",
+            330, 22, Color.YELLOW)
         _text("High score: %d" % hi_score, 390, 16, Color.CYAN)
         return
 
-    # HUD
     var font := ThemeDB.fallback_font
     draw_string(font, Vector2(10, 22), "SCORE %d" % score, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
     _text("LEVEL %d    HI %d" % [level, hi_score], 22, 16)
@@ -876,7 +881,6 @@ func _draw() -> void:
         draw_circle(sc, 22, Color(0.3, 0.8, 1.0, 0.15))
         draw_arc(sc, 22, 0, TAU, 24, Color(0.4, 0.9, 1.0, glow), 2)
 
-    # Bullets
     for pb in pbullets:
         draw_rect(Rect2(pb.pos, Vector2(3, 10)), Color.WHITE)
     for eb in alien_bullets:
@@ -915,16 +919,17 @@ func _draw() -> void:
         if new_record:
             _text("NEW HIGH SCORE!", H / 2.0 + 5, 20, Color.YELLOW)
         _text("Score: %d" % score, H / 2.0 + 30, 20)
-        _text("Enter: play again    Esc: title", H / 2.0 + 65, 16)
+        _text("%s: play again    %s: title" % [accept_key, back_key], H / 2.0 + 65, 16)
 
     if celebration_left > 0.0:
         draw_rect(Rect2(0, 0, W, H), Color(1, 1, 0.8, celebration_left * 0.5))
     if paused:
         draw_rect(Rect2(0, 0, W, H), Color(0, 0, 0, 0.6))
-        _text("PAUSED - P resume, Esc title", H / 2.0, 24, Color.YELLOW)
+        _text("PAUSED - %s resume, %s title" % [pause_key, back_key],
+            H / 2.0, 24, Color.YELLOW)
 
 
-func _draw_cannon(pos: Vector2, color: Color, cannon_scale: float = 1.0) -> void:
+func _draw_cannon(pos: Vector2, color: Color, cannon_scale: float=1.0) -> void:
     draw_rect(
         Rect2(
             pos + Vector2(-PLAYER_W / 2.0, 8) * cannon_scale, Vector2(PLAYER_W, 8) * cannon_scale
