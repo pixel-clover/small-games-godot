@@ -40,7 +40,7 @@ func _ready() -> void:
     box.set_anchors_preset(Control.PRESET_CENTER)
     box.grow_horizontal = Control.GROW_DIRECTION_BOTH
     box.grow_vertical = Control.GROW_DIRECTION_BOTH
-    box.add_theme_constant_override("separation", 10)
+    box.add_theme_constant_override("separation", 8)
     add_child(box)
 
     var title := Label.new()
@@ -67,6 +67,8 @@ func _ready() -> void:
         "res://games/space_invaders/invaders.tscn",
         "Best: %d" % Save.get_high("invaders")
     )
+    _add_button(box, "Neon Breach", "res://games/neon_breach/breach.tscn",
+        "Retro FPS   Best: %d" % Save.get_high("neon_breach"))
 
     var vol_row := HBoxContainer.new()
     vol_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -107,7 +109,7 @@ func _add_button(parent: Control, text: String, scene: String, sub: String) -> B
     b.text = "%s\n%s" % [text, sub]
     b.alignment = HORIZONTAL_ALIGNMENT_LEFT
     b.add_theme_constant_override("outline_size", 0)
-    b.custom_minimum_size = Vector2(400, 66)
+    b.custom_minimum_size = Vector2(420, 58)
     var style := StyleBoxFlat.new()
     style.bg_color = Color(0.12, 0.15, 0.2)
     style.content_margin_left = 82
@@ -210,3 +212,12 @@ func _draw_card(button: Button, kind: int) -> void:
             button.draw_rect(Rect2(32, 47, 16, 5), Color.GREEN_YELLOW)
             button.draw_rect(Rect2(38, 42, 4, 5), Color.GREEN_YELLOW)
             button.draw_rect(Rect2(39, 42 - fmod(age * 28, 23), 2, 5), Color.WHITE)
+        3:
+            button.draw_colored_polygon(PackedVector2Array([Vector2(10, 10), Vector2(28, 24),
+                Vector2(28, 44), Vector2(10, 56)]), Color("425367"))
+            button.draw_colored_polygon(PackedVector2Array([Vector2(68, 10), Vector2(50, 24),
+                Vector2(50, 44), Vector2(68, 56)]), Color("425367"))
+            button.draw_rect(Rect2(30, 24, 18, 20), Color("233540"))
+            button.draw_rect(Rect2(34, 48, 10, 10), Color("a0aeb9"))
+            button.draw_line(Vector2(35, 34), Vector2(43, 34), Color("79d9d4"))
+            button.draw_line(Vector2(39, 30), Vector2(39, 38), Color("79d9d4"))

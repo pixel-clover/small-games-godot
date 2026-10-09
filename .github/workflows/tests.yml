@@ -42,6 +42,7 @@ jobs:
                       "games/snake/snake"
                       "games/space_invaders/invaders"
                       "games/forest/forest"
+                      "games/neon_breach/breach"
                     )
                     for scene in "${scenes[@]}"; do
                       echo ">>> Validating res://${scene}.tscn..."
