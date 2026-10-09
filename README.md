@@ -38,7 +38,7 @@ nix develop --command godot --path .
 
 ---
 
-### Controller Controls
+### Controls
 
 Controllers use Godot's standard gamepad mappings.
 The labels below use the Xbox layout.
