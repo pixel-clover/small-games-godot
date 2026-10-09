@@ -468,8 +468,9 @@ func _run() -> void:
     await _test_forest_ui()
     current_scene.queue_free()
     await process_frame
-    # Let the audio server release playback instances before engine shutdown.
-    await create_timer(0.1).timeout
+    # The audio thread uses real time even when tests use --fixed-fps.
+    OS.delay_msec(100)
+    await process_frame
     print("Gameplay checks: %d passed, %d failed." % [checks - failures, failures])
     quit(1 if failures > 0 else 0)
 
@@ -610,6 +611,18 @@ func _test_breach() -> void:
     game._physics_process(1.0)
     _check(game.paused and game.player.position == start, "Pause must halt shooter simulation.")
     game._unhandled_input(_button(JOY_BUTTON_START))
+    var age_before: float = game.age
+    game.notification(MainLoop.NOTIFICATION_APPLICATION_FOCUS_OUT)
+    game._physics_process(0.5)
+    _check(game.paused and game.age == age_before and game.player.position == start and
+        Input.mouse_mode == Input.MOUSE_MODE_VISIBLE,
+        "Losing window focus must pause the shooter and release the mouse.")
+    game._unhandled_input(_button(JOY_BUTTON_START))
+    _check(game.paused, "Background controller input must not resume the shooter.")
+    game.notification(MainLoop.NOTIFICATION_APPLICATION_FOCUS_IN)
+    _check(game.paused, "Returning window focus must wait for an explicit resume.")
+    game._unhandled_input(_button(JOY_BUTTON_START))
+    _check(not game.paused, "Start must resume the shooter after focus returns.")
     var mouse := InputEventMouseMotion.new()
     mouse.relative = Vector2(5, 100)
     mouse.screen_relative = Vector2(30, 10000)
@@ -728,6 +741,35 @@ func _test_breach() -> void:
         game.health == 0 and game.state == BreachGame.State.DEAD,
         "Lethal damage must end the run without negative health."
     )
+    game.queue_free()
+    await process_frame
+    await _test_guard_collision()
+
+
+func _test_guard_collision() -> void:
+    var game := BreachGame.new()
+    root.add_child(game)
+    game.set_physics_process(false)
+    game.state = BreachGame.State.PLAYING
+    game.invulnerable = 1000.0
+    game.player.position = game._cell_position(Vector2i(3, 10))
+    var front: BreachGame.Guard = game.guards[0]
+    var back: BreachGame.Guard = game.guards[1]
+    front.body.position = game._cell_position(Vector2i(5, 10))
+    back.body.position = game._cell_position(Vector2i(6, 10))
+    back.active = true
+    for i in range(2, game.guards.size()):
+        game.guards[i].hp = 0
+        game.guards[i].body.collision_layer = 0
+    await physics_frame
+    await physics_frame
+    _check(game._can_see_player(front) and not game._can_see_player(back),
+        "A guard must block another guard's line of fire without blocking its own.")
+    for i in 240:
+        await physics_frame
+        game._update_guards(1.0 / 60.0)
+    _check(front.body.position.distance_to(back.body.position) >= 0.5,
+        "Pursuing guards must not overlap.")
     game.queue_free()
     await process_frame
 

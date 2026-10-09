@@ -79,9 +79,11 @@ var age := 0.0
 var stride := 0.0
 var toast := ""
 var toast_left := 0.0
+var _focused := true
 
 
 func _ready() -> void:
+    _focused = DisplayServer.get_name() == "headless" or get_window().has_focus()
     Save.apply_volume()
     best = Save.get_high("neon_breach")
     _build_station()
@@ -287,7 +289,7 @@ func reset_run() -> void:
         var guard := Guard.new()
         guard.body = CharacterBody3D.new()
         guard.body.collision_layer = 2
-        guard.body.collision_mask = 5
+        guard.body.collision_mask = 7
         _add_capsule(guard.body)
         guard.body.position = _cell_position(GUARD_CELLS[i])
         guard.hp = 4 if i == GUARD_CELLS.size() - 1 else 2
@@ -320,16 +322,31 @@ func _start_run() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+    if not _focused:
+        return
     if event.is_action_pressed("ui_cancel"):
         get_tree().change_scene_to_file("res://menu/menu.tscn")
     elif event.is_action_pressed("pause") and state == State.PLAYING:
-        paused = not paused
-        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if paused else Input.MOUSE_MODE_CAPTURED
+        _set_paused(not paused)
     elif event.is_action_pressed("ui_accept") and state != State.PLAYING:
         _start_run()
     elif event is InputEventMouseMotion and state == State.PLAYING and not paused:
         player.rotation.y -= event.screen_relative.x * 0.0028
         camera.rotation.x = clampf(camera.rotation.x - event.screen_relative.y * 0.0028, -1.1, 1.1)
+
+
+func _set_paused(value: bool) -> void:
+    paused = value
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if paused else Input.MOUSE_MODE_CAPTURED
+
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+        _focused = false
+        if state == State.PLAYING:
+            _set_paused(true)
+    elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+        _focused = true
 
 
 func _process(_delta: float) -> void:
@@ -438,7 +455,8 @@ func _update_exit() -> void:
 
 func _can_see_player(guard: Guard) -> bool:
     var start := guard.body.global_position + Vector3(0, 1.3, 0)
-    var query := PhysicsRayQueryParameters3D.create(start, camera.global_position, 5)
+    var query := PhysicsRayQueryParameters3D.create(start, camera.global_position, 7,
+        [guard.body.get_rid()])
     var hit := get_world_3d().direct_space_state.intersect_ray(query)
     return not hit.is_empty() and hit["collider"] == player
 
