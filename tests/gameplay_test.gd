@@ -529,16 +529,21 @@ func _test_forest_ui() -> void:
     var world := viewport.get_child(0) as Node2D
     world.set("no_save", true)
     world.set_process(false)
-    _check(ui.get_viewport() == root and viewport.size == Vector2i(320, 180),
-        "Forest text must use the window viewport while the art stays at 320 by 180.")
-    for resolution in [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(2560, 1440),
-        Vector2i(2048, 1152)]:
+    _check(
+        ui.get_viewport() == root and viewport.size == Vector2i(320, 180),
+        "Forest text must use the window viewport while the art stays at 320 by 180."
+    )
+    for resolution in [
+        Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(2048, 1152)
+    ]:
         root.size = resolution
         await process_frame
         host.call("_layout")
         var scale_factor := floorf(minf(resolution.x / 320.0, resolution.y / 180.0))
-        _check(ui.scale == Vector2.ONE * scale_factor and ui.position == container.position,
-            "The window UI must align with the forest at " + str(resolution))
+        _check(
+            ui.scale == Vector2.ONE * scale_factor and ui.position == container.position,
+            "The window UI must align with the forest at " + str(resolution)
+        )
     for discovery: Dictionary in world.get("TYPES"):
         for field in ["text", "hint"]:
             var text: String = discovery[field]
