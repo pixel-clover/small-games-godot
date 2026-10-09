@@ -16,17 +16,17 @@ const BIOME_W := 750.0
 # Things the player can discover (shown in the journal in this order).
 const TYPES := [
     {"id": "glowmush", "name": "Glowcap", "text": "Tiny lamps that sip the moonlight.",
-        "hint": "Look in damp, dark places."},
+        "hint": "Little moons beneath damp roots."},
     {"id": "moonbloom", "name": "Moonbloom", "text": "Opens its petals for lantern light at night.",
-        "hint": "Blooms at night, near your lantern."},
+        "hint": "I open when light meets night."},
     {"id": "fox", "name": "Red Fox", "text": "Watches quietly, then trots away.",
-        "hint": "Shy, and keeps among the trees."},
+        "hint": "A red coat waits among the trees."},
     {"id": "shrine", "name": "Standing Stone", "text": "Someone carved a rune here long ago.",
-        "hint": "Often found among old ruins."},
+        "hint": "Old stone remembers a carved sign."},
     {"id": "pond", "name": "Still Pond", "text": "Holds the sky, and every ripple.",
-        "hint": "Follow the mist to find water."},
+        "hint": "A still mirror holds the sky."},
     {"id": "glade", "name": "Hidden Glade", "text": "An open gap where the light pools gently.",
-        "hint": "Look for a gap in the trees."},
+        "hint": "Where trees part, daylight rests."},
 ]
 
 # Biomes along the x axis.
@@ -196,6 +196,7 @@ var audio_weights := PackedFloat32Array([1.0, 0.0, 0.0, 0.0, 0.0])
 var audio_from := PackedFloat32Array([1.0, 0.0, 0.0, 0.0, 0.0])
 var audio_fade := 3.0
 var landmark_player: AudioStreamPlayer2D
+var landmark_pos := Vector2.ZERO
 var breadcrumb_timer := 0.0
 var cricket_player: AudioStreamPlayer
 var bird_timer := 4.0
@@ -516,6 +517,8 @@ func _blend_audio(delta: float) -> void:
 
 
 func _update_breadcrumbs(delta: float) -> void:
+    if landmark_player.playing:
+        landmark_player.position = Vector2(VW / 2.0, VH / 2.0) + landmark_pos - player_pos
     breadcrumb_timer -= delta
     if breadcrumb_timer > 0.0 or landmark_player.playing:
         return
@@ -532,9 +535,8 @@ func _update_breadcrumbs(delta: float) -> void:
     if nearest.is_empty():
         return
     # Center the virtual listener on the wanderer while preserving left/right cues.
-    landmark_player.position = (
-        Vector2(VW / 2.0, VH / 2.0) + Vector2(float(nearest["x"]), float(nearest["y"])) - player_pos
-    )
+    landmark_pos = Vector2(float(nearest["x"]), float(nearest["y"]))
+    landmark_player.position = Vector2(VW / 2.0, VH / 2.0) + landmark_pos - player_pos
     landmark_player.stream = snd[str(nearest["kind"]) + "_cue"]
     landmark_player.volume_db = -24.0
     landmark_player.play()

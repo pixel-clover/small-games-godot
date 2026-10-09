@@ -376,7 +376,7 @@ func step() -> void:
 
 
 func _reward_near_miss() -> void:
-    if near_rewarded:
+    if near_rewarded or game_over:
         return
     var head := snake[0]
     var hazards: Array[Vector2i] = rocks.duplicate()

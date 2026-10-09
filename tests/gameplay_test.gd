@@ -223,6 +223,37 @@ func _run() -> void:
     _check(forest._terrain() == 0, "Path footsteps must use the dirt sound.")
     forest.player_pos.y += 12.0
     _check(forest._terrain() == 1, "Off-path footsteps must use the grass sound.")
+    forest.snd = {
+        "shrine_cue": Sfx.build([[1047, 1047, 0.05, "sine", 0.1]]),
+        "pond_cue": Sfx.build([[200, 100, 0.05, "sine", 0.1]]),
+    }
+    forest.vis_special = [
+        {
+            "id": "cue_shrine",
+            "kind": "shrine",
+            "x": forest.player_pos.x + 80.0,
+            "y": forest.player_pos.y
+        }
+    ]
+    forest.breadcrumb_timer = 0.0
+    forest._update_breadcrumbs(0.1)
+    _check(
+        (
+            forest.landmark_player.stream == forest.snd["shrine_cue"]
+            and forest.landmark_player.position.x > 160.0
+        ),
+        "Undiscovered landmarks must play spatial cues toward the object."
+    )
+    forest.landmark_player.stop()
+    forest.landmark_player.stream = null
+    forest.found_ids["cue_shrine"] = true
+    forest.breadcrumb_timer = 0.0
+    forest._update_breadcrumbs(0.1)
+    _check(
+        forest.landmark_player.stream == null,
+        "Discovered landmarks must stop offering audio breadcrumbs."
+    )
+    forest.snd.clear()
     forest.audio_from = PackedFloat32Array([1, 0, 0, 0, 0])
     forest.cur_biome = 1
     forest.audio_fade = 0.0
@@ -256,6 +287,12 @@ func _run() -> void:
     for i in 180:
         forest._update_lantern(1.0 / 60.0)
     _check(forest.lantern_offset.length() < 0.01, "The lantern spring must settle after stopping.")
+    forest.vel.x = 38.0
+    forest._update_lantern(0.1)
+    _check(
+        forest.lantern_offset.x < 0.0,
+        "The lantern must lag behind the wanderer when movement starts."
+    )
     forest.moving = true
     forest.fuel = 1.0
     forest._update_ui(1.0)
