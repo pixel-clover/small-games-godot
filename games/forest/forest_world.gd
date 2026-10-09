@@ -171,6 +171,7 @@ var fg_leaves: Array
 var fg_ferns: Array
 var player_r: Array
 var player_l: Array
+var journal_icons: Dictionary = {}
 
 # Layers drawn on top of the world
 var overlay: Node2D
@@ -330,6 +331,18 @@ func _build_art() -> void:
     fox_l = fx[1]
     for c in [Color("8a6a4a"), Color("5a7fb0"), Color("b86a4a")]:
         bird_tex.append(ForestArt.bird_frames(c))
+    var sources := {"glowmush": glow_mush[0], "moonbloom": moon_open,
+        "fox": fox_r[0], "shrine": stones[0]}
+    for kind: String in sources:
+        var texture: Texture2D = sources[kind]
+        var ink := texture.get_image()
+        for y in ink.get_height():
+            for x in ink.get_width():
+                var pixel := ink.get_pixel(x, y)
+                var color := Color("704323").lerp(Color("bc8b52"), pixel.get_luminance())
+                color.a = pixel.a
+                ink.set_pixel(x, y, color)
+        journal_icons[kind] = ImageTexture.create_from_image(ink)
 
 
 func _build_particles() -> void:
@@ -1751,16 +1764,19 @@ func _draw_icon(u: Node2D, kind: String, box: Rect2, known: bool) -> void:
             _ellipse(u, c + Vector2(0, 2), 10.0, 4.0, Color("a96932") if known else col)
             _ellipse(u, c + Vector2(0, 1), 6.0, 2.0, Color("c28c50") if known else col)
         "glade":
-            var lc := Color(1, 0.95, 0.6, 0.55) if known else col
+            var lc := Color(0.7, 0.4, 0.2, 0.55) if known else col
             u.draw_colored_polygon(PackedVector2Array(
                 [c + Vector2(-3, -10), c + Vector2(2, -10), c + Vector2(9, 6),
                     c + Vector2(-10, 6)]), lc)
-            _ellipse(u, c + Vector2(0, 7), 10.0, 3.0, Color(0.5, 0.8, 0.4) if known else col)
+            _ellipse(u, c + Vector2(0, 7), 10.0, 3.0, Color("a96932") if known else col)
     if tex != null:
+        if known:
+            tex = journal_icons[kind]
+            col = Color.WHITE
         var sz := tex.get_size()
-        var s := maxf(floorf(minf(22.0 / sz.x, 22.0 / sz.y)), 1.0)
-        if sz.y * s > 24.0:
-            s = 1.0
+        var s := minf(22.0 / sz.x, 22.0 / sz.y)
+        if s >= 1.0:
+            s = floorf(s)
         var tsz := sz * s
         u.draw_texture_rect(tex, Rect2((c - tsz / 2.0).floor(), tsz), false, col)
 

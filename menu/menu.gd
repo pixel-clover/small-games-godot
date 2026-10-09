@@ -106,6 +106,12 @@ func _play(sound: String) -> void:
     p.play()
 
 
+func _exit_tree() -> void:
+    for player in players:
+        player.stop()
+        player.stream = null
+
+
 func _connect_focus(button: Button) -> void:
     button.focus_entered.connect(func() -> void:
         _play("move")

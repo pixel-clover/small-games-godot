@@ -178,6 +178,14 @@ func play(sound: String) -> void:
     p.play()
 
 
+func _exit_tree() -> void:
+    for player in players:
+        player.stop()
+        player.stream = null
+    ufo_player.stop()
+    ufo_player.stream = null
+
+
 func start_game() -> void:
     level = 1
     score = 0

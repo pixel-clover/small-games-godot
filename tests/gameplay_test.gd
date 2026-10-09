@@ -9,9 +9,11 @@ var checks := 0
 
 
 func _initialize() -> void:
-    create_timer(30.0).timeout.connect(func() -> void:
-        push_error("Gameplay tests did not finish.")
-        quit(1))
+    create_timer(30.0).timeout.connect(
+        func() -> void:
+            push_error("Gameplay tests did not finish.")
+            quit(1)
+    )
     _run.call_deferred()
 
 
@@ -43,8 +45,10 @@ func _run() -> void:
     var head: Vector2i = snake.snake[0]
     snake.step()
     snake.step()
-    _check(snake.snake[0] == head + Vector2i.DOWN + Vector2i.RIGHT,
-        "Buffered turns must execute on successive ticks.")
+    _check(
+        snake.snake[0] == head + Vector2i.DOWN + Vector2i.RIGHT,
+        "Buffered turns must execute on successive ticks."
+    )
     snake.queue_turn(Vector2i.LEFT)
     _check(snake.turns.is_empty(), "Immediate reversal must be rejected.")
     snake.queue_turn(Vector2i.DOWN)
@@ -63,6 +67,19 @@ func _run() -> void:
     snake.near_rewarded = false
     snake._reward_near_miss()
     _check(snake.score > points, "Near misses must account for wrapped board edges.")
+    snake.food = snake.snake[0] + Vector2i.RIGHT
+    snake.combo = 2
+    snake.combo_left = 1.0
+    snake.step()
+    _check(
+        not snake.near_rewarded and snake.swallow_age == 0.0,
+        "Eating must reset near-miss eligibility and start the body ripple."
+    )
+    var eat_player := snake.players[(snake.next_player + 3) % 4]
+    _check(
+        is_equal_approx(eat_player.pitch_scale, pow(2.0, 4.0 / 12.0)),
+        "The third combo step must use the third major pentatonic note."
+    )
     snake.paused = true
     head = snake.snake[0]
     snake._process(1.0)
@@ -72,15 +89,19 @@ func _run() -> void:
     snake.end_game()
     for i in 3:
         snake._process(1.0 / 60.0)
-    _check(snake.death_age == 0.0 and snake.death_freeze == 0,
-        "The death sequence must freeze for three frames.")
+    _check(
+        snake.death_age == 0.0 and snake.death_freeze == 0,
+        "The death sequence must freeze for three frames."
+    )
     snake.score = 50
     for i in 60:
         snake._process(0.07)
     _check(snake.final_score == 50, "The final score must count up without overshooting.")
     snake.reset_game()
-    _check(snake.turns.is_empty() and snake.final_score == 0 and snake.death_freeze == 0,
-        "Restart must clear buffered inputs and death feedback.")
+    _check(
+        snake.turns.is_empty() and snake.final_score == 0 and snake.death_freeze == 0,
+        "Restart must clear buffered inputs and death feedback."
+    )
     snake.free()
 
     var invaders := InvadersGame.new()
@@ -91,8 +112,10 @@ func _run() -> void:
     Input.action_press("ui_accept")
     invaders._player_fire()
     Input.action_release("ui_accept")
-    _check(invaders.recoil_left > 0.0 and invaders.muzzle_frames == 1,
-        "Firing must trigger recoil and a one-frame muzzle flash.")
+    _check(
+        invaders.recoil_left > 0.0 and invaders.muzzle_frames == 1,
+        "Firing must trigger recoil and a one-frame muzzle flash."
+    )
     invaders.pbullets.clear()
     var alien := InvadersGame.Alien.new()
     alien.pos = Vector2(300, 160)
@@ -103,20 +126,32 @@ func _run() -> void:
     invaders.aliens = [alien]
     var bullet := InvadersGame.PBullet.new()
     bullet.pos = alien.pos + Vector2(10, 5)
-    _check(invaders._pbullet_hits(bullet) and alien.hp == 1 and invaders.hit_stop_frames == 2,
-        "Tough alien hits must trigger two frames of hit stop.")
+    _check(
+        invaders._pbullet_hits(bullet) and alien.hp == 1 and invaders.hit_stop_frames == 2,
+        "Tough alien hits must trigger two frames of hit stop."
+    )
     var cooldown: float = invaders.fire_cd
     for i in 2:
         invaders._process(1.0)
-    _check(invaders.fire_cd == cooldown and invaders.hit_stop_frames == 0,
-        "Hit stop must freeze simulation timers for exactly two frames.")
+    _check(
+        invaders.fire_cd == cooldown and invaders.hit_stop_frames == 0,
+        "Hit stop must freeze simulation timers for exactly two frames."
+    )
+    invaders.hit_stop_frames = 2
+    invaders.paused = true
+    invaders._process(1.0)
+    _check(invaders.hit_stop_frames == 2, "Pause must retain pending hit-stop frames.")
+    invaders.paused = false
+    invaders.hit_stop_frames = 0
     alien.pos = Vector2(invaders.player_x - 12, invaders.PLAYER_Y - 50)
     invaders.fire_cd = 0.14
     invaders._kill_alien(0)
     _check(invaders.fire_cd == 0.0, "Close kills must reset rapid-fire cooldown.")
     invaders._build_bunkers()
-    _check(invaders._bunker_color(0) == Color.LIME_GREEN.darkened(0.2),
-        "An intact bunker must be green.")
+    _check(
+        invaders._bunker_color(0) == Color.LIME_GREEN.darkened(0.2),
+        "An intact bunker must be green."
+    )
     for i in 50:
         invaders.bunker_cells[i] = 0
     _check(invaders._bunker_color(0) == Color.GOLD, "A damaged bunker must be yellow.")
@@ -128,25 +163,34 @@ func _run() -> void:
     invaders.boss_pattern = 1
     invaders.boss_cd = 0.1
     invaders._update_boss(0.05)
-    _check(invaders.boss_warned and invaders.alien_bullets.is_empty(),
-        "Boss spreads must warn before firing.")
+    _check(
+        invaders.boss_warned and invaders.alien_bullets.is_empty(),
+        "Boss spreads must warn before firing."
+    )
     invaders._update_boss(0.15)
-    _check(invaders.alien_bullets.is_empty(),
-        "Boss warning must last the full anticipation period.")
+    _check(
+        invaders.alien_bullets.is_empty(), "Boss warning must last the full anticipation period."
+    )
     invaders._update_boss(0.16)
-    _check(invaders.alien_bullets.size() == 5 and not invaders.boss_warned,
-        "Boss spreads must fire once after their warning.")
+    _check(
+        invaders.alien_bullets.size() == 5 and not invaders.boss_warned,
+        "Boss spreads must fire once after their warning."
+    )
     invaders.lost_life = false
     points = invaders.score
     invaders._level_cleared()
-    _check(invaders.score == points + 5000 and invaders.celebration_left > 0.0,
-        "Flawless waves must award the bonus and celebration.")
+    _check(
+        invaders.score == points + 5000 and invaders.celebration_left > 0.0,
+        "Flawless waves must award the bonus and celebration."
+    )
     invaders.lost_life = true
     invaders.celebration_left = 0.0
     points = invaders.score
     invaders._level_cleared()
-    _check(invaders.score == points and invaders.celebration_left == 0.0,
-        "Damaged waves must not award a flawless bonus.")
+    _check(
+        invaders.score == points and invaders.celebration_left == 0.0,
+        "Damaged waves must not award a flawless bonus."
+    )
     invaders.free()
 
     var forest := ForestWorld.new()
@@ -156,12 +200,16 @@ func _run() -> void:
     forest.found_ids.clear()
     forest.found_counts.clear()
     forest._discover({"id": "test_shrine", "kind": "shrine", "x": 10.0, "y": 152.0})
-    _check(forest.discovery_left == 0.5 and forest.sparks.size() == 22,
-        "A new discovery must pause movement and spawn sparks.")
+    _check(
+        forest.discovery_left == 0.5 and forest.sparks.size() == 22,
+        "A new discovery must pause movement and spawn sparks."
+    )
     forest.discovery_left = 0.2
     forest._discover({"id": "test_shrine", "kind": "shrine", "x": 10.0, "y": 152.0})
-    _check(forest.discovery_left == 0.2 and forest._total_found() == 1,
-        "Rediscovering the same object must not restart the pause or count twice.")
+    _check(
+        forest.discovery_left == 0.2 and forest._total_found() == 1,
+        "Rediscovering the same object must not restart the pause or count twice."
+    )
     var pos: Vector2 = forest.player_pos
     Input.action_press("ui_right")
     forest._process(0.1)
@@ -179,11 +227,27 @@ func _run() -> void:
     forest.cur_biome = 1
     forest.audio_fade = 0.0
     forest._blend_audio(1.5)
-    _check(is_equal_approx(forest.audio_weights[0], 0.5) and
-        is_equal_approx(forest.audio_weights[1], 0.5),
-        "Biome audio must crossfade over three seconds.")
+    _check(
+        (
+            is_equal_approx(forest.audio_weights[0], 0.5)
+            and is_equal_approx(forest.audio_weights[1], 0.5)
+        ),
+        "Biome audio must crossfade over three seconds."
+    )
     forest._blend_audio(1.5)
     _check(is_equal_approx(forest.audio_weights[1], 1.0), "Biome audio must reach its new target.")
+    forest.audio_weights = PackedFloat32Array([0.5, 0.5, 0, 0, 0])
+    forest.cur_biome = 1
+    forest._goto_biome(4)
+    forest._update_biome()
+    forest._blend_audio(0.0)
+    _check(
+        (
+            is_equal_approx(forest.audio_weights[0], 0.5)
+            and is_equal_approx(forest.audio_weights[1], 0.5)
+        ),
+        "Crossing another biome during a fade must preserve the current mix."
+    )
     forest.lantern_offset = Vector2(4, -2)
     forest.lantern_velocity = Vector2.ZERO
     forest.vel = Vector2.ZERO
@@ -205,26 +269,38 @@ func _run() -> void:
     pos = forest.player_pos
     forest._process(0.1)
     _check(forest.player_pos == pos, "The journal must halt movement.")
+    _check(forest.journal_icons.size() == 4, "Journal ink textures must be cached during setup.")
     forest.queue_free()
     await process_frame
 
     var noise := [[200, 100, 0.02, "noise", 0.2]]
     var first_noise := Sfx.build(noise)
     var second_noise := Sfx.build(noise)
-    _check(first_noise.data == second_noise.data,
-        "Procedural effects must produce deterministic audio.")
+    _check(
+        first_noise.data == second_noise.data,
+        "Procedural effects must produce deterministic audio."
+    )
     var steps := ForestAudio.footsteps()
-    _check(steps.size() == 3 and steps[0].data != steps[1].data and steps[1].data != steps[2].data,
-        "Dirt, grass, and bog footsteps must have distinct timbres.")
+    _check(
+        steps.size() == 3 and steps[0].data != steps[1].data and steps[1].data != steps[2].data,
+        "Dirt, grass, and bog footsteps must have distinct timbres."
+    )
 
     await _test_transitions()
+    current_scene.queue_free()
+    await process_frame
+    # Let the audio server release playback instances before engine shutdown.
+    await create_timer(0.1).timeout
     print("Gameplay checks: %d passed, %d failed." % [checks - failures, failures])
     quit(1 if failures > 0 else 0)
 
 
 func _test_transitions() -> void:
-    for path in ["res://games/snake/snake.tscn", "res://games/space_invaders/invaders.tscn",
-        "res://games/forest/forest.tscn"]:
+    for path in [
+        "res://games/snake/snake.tscn",
+        "res://games/space_invaders/invaders.tscn",
+        "res://games/forest/forest.tscn"
+    ]:
         change_scene_to_file("res://menu/menu.tscn")
         await process_frame
         await process_frame
@@ -242,5 +318,7 @@ func _test_transitions() -> void:
             current_scene.call("_unhandled_input", _event("ui_cancel"))
         await process_frame
         await process_frame
-        _check(current_scene.scene_file_path == "res://menu/menu.tscn",
-            "Escape must return to the launcher from " + path)
+        _check(
+            current_scene.scene_file_path == "res://menu/menu.tscn",
+            "Escape must return to the launcher from " + path
+        )

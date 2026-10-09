@@ -95,6 +95,12 @@ func play(sound: String, pitch: float=1.0) -> void:
     p.play()
 
 
+func _exit_tree() -> void:
+    for player in players:
+        player.stop()
+        player.stream = null
+
+
 func game_key() -> String:
     return "snake_wrap" if wrap else "snake"
 
