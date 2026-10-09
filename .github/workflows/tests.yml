@@ -42,3 +42,7 @@ jobs:
                       godot --headless --path . "res://${scene}.tscn" --quit-after 60
                     done
                     echo ">>> All scenes validated successfully with zero errors!"
+
+            -   name: Gameplay Regression Tests
+                run: |
+                    XDG_DATA_HOME="$(mktemp -d)" godot --headless --path . --script res://tests/gameplay_test.gd

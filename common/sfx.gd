@@ -9,11 +9,15 @@ const RATE := 22050
 
 
 static func build(segments: Array) -> AudioStreamWAV:
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 42
     var data := PackedByteArray()
     for seg in segments:
         var f0: float = seg[0]
         var f1: float = seg[1]
         var n := int(float(seg[2]) * RATE)
+        var offset := data.size()
+        data.resize(offset + n * 2)
         var wave: String = seg[3]
         var vol: float = seg[4]
         var phase := 0.0
@@ -27,10 +31,9 @@ static func build(segments: Array) -> AudioStreamWAV:
                 "sine":
                     s = sin(TAU * phase)
                 "noise":
-                    s = randf() * 2.0 - 1.0
+                    s = rng.randf() * 2.0 - 1.0
             s *= vol * (1.0 - t)  # linear decay envelope
-            data.resize(data.size() + 2)
-            data.encode_s16(data.size() - 2, int(clampf(s, -1.0, 1.0) * 32767.0))
+            data.encode_s16(offset + i * 2, int(clampf(s, -1.0, 1.0) * 32767.0))
     var stream := AudioStreamWAV.new()
     stream.format = AudioStreamWAV.FORMAT_16_BITS
     stream.mix_rate = RATE

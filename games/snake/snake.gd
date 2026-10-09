@@ -17,10 +17,11 @@ const COMBO_TIME := 3.0
 const MAX_COMBO := 5
 const MAX_ROCKS := 14
 const SAFE_ZONE := 5  # cells ahead of the head that never get rocks
+const COMBO_NOTES := [0, 2, 4, 7, 9]
 
 var snake: Array[Vector2i] = []
 var direction := Vector2i.RIGHT
-var queued_direction := Vector2i.RIGHT
+var turns: Array[Vector2i] = []
 var food := Vector2i.ZERO
 var score := 0
 var game_over := false
@@ -50,6 +51,16 @@ var double_left := 0.0
 
 var combo := 1
 var combo_left := 0.0
+var move_age := 1.0
+var swallow_age := 99.0
+var near_rewarded := false
+var sparkle_pos := Vector2.ZERO
+var sparkle_left := 0.0
+var death_freeze := 0
+var death_age := 0.0
+var final_score := 0
+var count_timer := 0.0
+var record_target := 10
 
 var players: Array[AudioStreamPlayer] = []
 var next_player := 0
@@ -68,16 +79,19 @@ func _ready() -> void:
         "bonus": Sfx.build([[700, 700, 0.07, "square", 0.25], [900, 900, 0.07, "square", 0.25],
             [1200, 1200, 0.12, "square", 0.25]]),
         "power": Sfx.build([[400, 900, 0.2, "sine", 0.4]]),
+        "tick": Sfx.build([[880, 880, 0.025, "sine", 0.15]]),
+        "near": Sfx.build([[1200, 1600, 0.05, "sine", 0.15]]),
         "gameover": Sfx.build([[440, 330, 0.2, "square", 0.3], [330, 220, 0.2, "square", 0.3],
             [220, 110, 0.4, "square", 0.3]]),
     }
     reset_game()
 
 
-func play(sound: String) -> void:
+func play(sound: String, pitch: float=1.0) -> void:
     var p := players[next_player]
     next_player = (next_player + 1) % players.size()
     p.stream = sounds[sound]
+    p.pitch_scale = pitch
     p.play()
 
 
@@ -89,7 +103,7 @@ func reset_game() -> void:
     var start := GRID / 2
     snake = [start, start - Vector2i.RIGHT, start - Vector2i.RIGHT * 2]
     direction = Vector2i.RIGHT
-    queued_direction = direction
+    turns.clear()
     score = 0
     game_over = false
     started = false
@@ -106,7 +120,16 @@ func reset_game() -> void:
     double_left = 0.0
     combo = 1
     combo_left = 0.0
+    move_age = 1.0
+    swallow_age = 99.0
+    near_rewarded = false
+    sparkle_left = 0.0
+    death_freeze = 0
+    death_age = 0.0
+    final_score = 0
+    count_timer = 0.0
     high_score = Save.get_high(game_key())
+    record_target = maxi(high_score, FOOD_POINTS)
     spawn_food()
     queue_redraw()
 
@@ -175,6 +198,7 @@ func end_game() -> void:
     if game_over:
         return
     game_over = true
+    death_freeze = 3
     new_record = Save.submit_score(game_key(), score)
     if new_record:
         high_score = score
@@ -206,7 +230,7 @@ func _unhandled_input(event: InputEvent) -> void:
         return
     if paused:
         return
-    var new_dir := queued_direction
+    var new_dir := direction
     if event.is_action_pressed("ui_up"):
         new_dir = Vector2i.UP
     elif event.is_action_pressed("ui_down"):
@@ -217,10 +241,14 @@ func _unhandled_input(event: InputEvent) -> void:
         new_dir = Vector2i.RIGHT
     else:
         return
-    # Disallow reversing into yourself
-    if new_dir != -direction:
-        queued_direction = new_dir
-        started = true
+    queue_turn(new_dir)
+    started = true
+
+
+func queue_turn(new_dir: Vector2i) -> void:
+    var previous: Vector2i = direction if turns.is_empty() else turns.back()
+    if turns.size() < 2 and new_dir != previous and new_dir != -previous:
+        turns.append(new_dir)
 
 
 func step_time() -> float:
@@ -231,8 +259,17 @@ func step_time() -> float:
 
 
 func _process(delta: float) -> void:
-    if game_over or paused or not started:
+    if paused:
         return
+    if game_over:
+        _update_death(delta)
+        queue_redraw()
+        return
+    if not started:
+        return
+    move_age += delta
+    swallow_age += delta
+    sparkle_left = maxf(0.0, sparkle_left - delta)
     # Timed things
     if combo_left > 0.0:
         combo_left -= delta
@@ -261,13 +298,29 @@ func _process(delta: float) -> void:
     queue_redraw()
 
 
+func _update_death(delta: float) -> void:
+    if death_freeze > 0:
+        death_freeze -= 1
+        return
+    death_age += delta
+    if death_age < snake.size() * 0.04 or final_score >= score:
+        return
+    count_timer += delta
+    if count_timer >= 0.07:
+        count_timer = fmod(count_timer, 0.07)
+        final_score = mini(score, final_score + maxi(1, ceili(score / 20.0)))
+        play("tick")
+
+
 func add_points(base: int) -> void:
     var mult := 2 if double_left > 0.0 else 1
     score += base * combo * mult
 
 
 func step() -> void:
-    direction = queued_direction
+    if not turns.is_empty():
+        direction = turns.pop_front()
+    move_age = 0.0
     var head := snake[0] + direction
     if wrap:
         head = wrap_cell(head)
@@ -284,8 +337,10 @@ func step() -> void:
         combo_left = COMBO_TIME
         add_points(FOOD_POINTS)
         foods_eaten += 1
+        near_rewarded = false
+        swallow_age = 0.0
         foods_until_bonus -= 1
-        play("eat")
+        play("eat", pow(2.0, COMBO_NOTES[combo - 1] / 12.0))
         if foods_eaten % 5 == 0:
             spawn_rocks(randi_range(1, 2))
         spawn_food()
@@ -297,6 +352,8 @@ func step() -> void:
         combo_left = COMBO_TIME
         add_points(FOOD_POINTS * BONUS_MULT)
         bonus_active = false
+        near_rewarded = false
+        swallow_age = 0.0
         play("bonus")
     else:
         snake.pop_back()
@@ -308,7 +365,30 @@ func step() -> void:
                 double_left = POWER_TIME_DOUBLE
             add_points(FOOD_POINTS)
             play("power")
+    _reward_near_miss()
     queue_redraw()
+
+
+func _reward_near_miss() -> void:
+    if near_rewarded:
+        return
+    var head := snake[0]
+    var hazards: Array[Vector2i] = rocks.duplicate()
+    # Skip the neck, which is always adjacent to the head.
+    hazards.append_array(snake.slice(3))
+    for hazard in hazards:
+        var dx := absi(head.x - hazard.x)
+        var dy := absi(head.y - hazard.y)
+        if wrap:
+            dx = mini(dx, GRID.x - dx)
+            dy = mini(dy, GRID.y - dy)
+        if dx + dy == 1:
+            near_rewarded = true
+            add_points(2)
+            sparkle_pos = Vector2(head * CELL) + Vector2.ONE * CELL / 2.0
+            sparkle_left = 0.35
+            play("near")
+            return
 
 
 func cell_rect(c: Vector2i, inset: float=1.0) -> Rect2:
@@ -353,19 +433,53 @@ func _draw() -> void:
             draw_rect(cell_rect(power_pos, 2.0), col)
             draw_string(font, pc + Vector2(-4, 5), "S" if power_kind == "slow" else "x2",
                 HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color.WHITE)
+        draw_arc(pc, CELL / 2.0 + 2.0, -PI / 2.0,
+            -PI / 2.0 + TAU * power_left / POWER_LIFETIME, 32, col, 2.0)
     # Snake
     for i in snake.size():
+        if game_over and death_freeze == 0 and i < int(death_age / 0.04):
+            var origin := cell_rect(snake[i]).get_center()
+            var crumble := clampf((death_age - i * 0.04) / 0.25, 0.0, 1.0)
+            if crumble < 1.0:
+                for k in 4:
+                    var offset := Vector2(-1 if k % 2 == 0 else 1, -1 if k < 2 else 1)
+                    draw_rect(Rect2(origin + offset * (3.0 + crumble * 12.0), Vector2.ONE * 4),
+                        Color(0.3, 0.8, 0.4, 1.0 - crumble))
+            continue
         var color := Color(0.2, 0.75, 0.3) if i > 0 else Color.GREEN_YELLOW
         if slow_left > 0.0:
             color = color.lerp(Color.DODGER_BLUE, 0.5)
         if double_left > 0.0:
             color = color.lerp(Color.MEDIUM_ORCHID, 0.4)
-        draw_rect(cell_rect(snake[i]), color)
+        var rect := cell_rect(snake[i])
+        if not game_over:
+            if i == 0:
+                var stretch := maxf(0.0, 1.0 - move_age / 0.08) * 3.0
+                rect.position += Vector2(direction) * stretch * 0.5
+                rect = rect.grow_individual(stretch if direction.x != 0 else 0.0,
+                    stretch if direction.y != 0 else 0.0,
+                    stretch if direction.x != 0 else 0.0, stretch if direction.y != 0 else 0.0)
+            var ripple := swallow_age - i * 0.025
+            if ripple >= 0.0 and ripple < 0.15:
+                rect = rect.grow(sin(ripple / 0.15 * PI) * 2.0)
+        draw_rect(rect, color)
+        if slow_left > 0.0 or double_left > 0.0:
+            draw_rect(rect.grow(1.0), Color.MEDIUM_ORCHID if double_left > 0.0
+                else Color.DODGER_BLUE, false, 1.5)
+    if sparkle_left > 0.0:
+        for k in 6:
+            var p := sparkle_pos + Vector2.RIGHT.rotated(k * TAU / 6.0) * \
+                (1.0 - sparkle_left / 0.35) * 22.0
+            draw_line(p - Vector2(2, 0), p + Vector2(2, 0), Color(1, 1, 0.6, sparkle_left / 0.35))
     # HUD
     var mode := "Wrap" if wrap else "Walls"
     draw_string(font, Vector2(8, 20), "Score: %d" % score, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
     draw_string(font, Vector2(0, 20), "Best (%s): %d" % [mode, high_score],
         HORIZONTAL_ALIGNMENT_RIGHT, w - 8, 16)
+    var score_scale := maxf(record_target * 1.25, score)
+    draw_bar(Vector2(220, 28), Vector2(180, 5), score / score_scale, Color.GREEN)
+    var marker := 220.0 + 180.0 * record_target / score_scale
+    draw_line(Vector2(marker, 26), Vector2(marker, 35), Color(1, 1, 1, 0.5))
     var combo_text := "Combo x%d" % combo
     draw_string(font, Vector2(8, 40), combo_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.ORANGE)
     draw_bar(Vector2(90, 30), Vector2(70, 8),
@@ -392,11 +506,11 @@ func _draw() -> void:
         draw_rect(Rect2(Vector2.ZERO, GRID * CELL), Color(0, 0, 0, 0.6))
         draw_string(font, Vector2(0, h / 2.0), "PAUSED - P resume, Esc menu",
             HORIZONTAL_ALIGNMENT_CENTER, w, 24)
-    if game_over:
+    if game_over and death_freeze == 0:
         draw_rect(Rect2(Vector2.ZERO, GRID * CELL), Color(0, 0, 0, 0.5))
         draw_string(font, Vector2(0, h / 2.0), "Game Over - press Enter to restart",
             HORIZONTAL_ALIGNMENT_CENTER, w, 24)
-        draw_string(font, Vector2(0, h / 2.0 + 28), "Score: %d" % score,
+        draw_string(font, Vector2(0, h / 2.0 + 28), "Score: %d" % final_score,
             HORIZONTAL_ALIGNMENT_CENTER, w, 18)
         if new_record:
             draw_string(font, Vector2(0, h / 2.0 + 54), "New record!", HORIZONTAL_ALIGNMENT_CENTER,
