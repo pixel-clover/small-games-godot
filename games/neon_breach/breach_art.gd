@@ -31,7 +31,7 @@ static func floor_tile() -> ImageTexture:
     return ImageTexture.create_from_image(image)
 
 
-static func guard(boss: bool = false) -> ImageTexture:
+static func guard(boss: bool=false) -> ImageTexture:
     var image := Image.create(32, 48, false, Image.FORMAT_RGBA8)
     var armor := Color("bc493e") if boss else Color("586997")
     image.fill_rect(Rect2i(11, 3, 10, 10), Color("223044"))

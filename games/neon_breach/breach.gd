@@ -2,7 +2,7 @@ extends Node3D
 
 ## A small retro FPS with procedural station art, guards, and sound.
 
-enum State { TITLE, PLAYING, WON, DEAD }
+enum State {TITLE, PLAYING, WON, DEAD}
 
 const Art := preload("res://games/neon_breach/breach_art.gd")
 const CELL := 2.5
@@ -116,13 +116,13 @@ func _ready() -> void:
         "pickup": Sfx.build([[660, 880, 0.07, "sine", 0.3], [1047, 1047, 0.1, "sine", 0.2]]),
         "empty": Sfx.build([[100, 100, 0.035, "square", 0.1]]),
         "win":
-        Sfx.build(
-            [
-                [523, 523, 0.1, "sine", 0.3],
-                [659, 659, 0.1, "sine", 0.3],
-                [784, 1047, 0.25, "sine", 0.3]
-            ]
-        ),
+            Sfx.build(
+                [
+                    [523, 523, 0.1, "sine", 0.3],
+                    [659, 659, 0.1, "sine", 0.3],
+                    [784, 1047, 0.25, "sine", 0.3]
+                ]
+            ),
         "dead": Sfx.build([[220, 80, 0.5, "square", 0.25]]),
     }
     reset_run()
@@ -136,7 +136,7 @@ func _grid_position(pos: Vector3) -> Vector2i:
     return Vector2i(floori(pos.x / CELL), floori(pos.z / CELL))
 
 
-func _material(texture: Texture2D, color: Color = Color.WHITE) -> StandardMaterial3D:
+func _material(texture: Texture2D, color: Color=Color.WHITE) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_texture = texture
     material.albedo_color = color
@@ -265,6 +265,7 @@ func reset_run() -> void:
     pickups.clear()
     player.position = _cell_position(START)
     player.rotation = Vector3.ZERO
+    player.rotation.y = -PI / 2.0
     player.velocity = Vector3.ZERO
     camera.rotation = Vector3.ZERO
     camera.position.y = 1.45
@@ -327,8 +328,8 @@ func _unhandled_input(event: InputEvent) -> void:
     elif event.is_action_pressed("ui_accept") and state != State.PLAYING:
         _start_run()
     elif event is InputEventMouseMotion and state == State.PLAYING and not paused:
-        player.rotation.y -= event.relative.x * 0.0028
-        camera.rotation.x = clampf(camera.rotation.x - event.relative.y * 0.0028, -1.1, 1.1)
+        player.rotation.y -= event.screen_relative.x * 0.0028
+        camera.rotation.x = clampf(camera.rotation.x - event.screen_relative.y * 0.0028, -1.1, 1.1)
 
 
 func _process(_delta: float) -> void:
@@ -545,7 +546,7 @@ func _exit_tree() -> void:
         sound_player.stream = null
 
 
-func _text(text: String, pos: Vector2, size: int = 18, color: Color = Color.WHITE) -> void:
+func _text(text: String, pos: Vector2, size: int=18, color: Color=Color.WHITE) -> void:
     hud.draw_string(
         ThemeDB.fallback_font,
         pos + Vector2.ONE,
@@ -558,7 +559,7 @@ func _text(text: String, pos: Vector2, size: int = 18, color: Color = Color.WHIT
     hud.draw_string(ThemeDB.fallback_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
 
-func _center(text: String, y: float, size: int = 22, color: Color = Color.WHITE) -> void:
+func _center(text: String, y: float, size: int=22, color: Color=Color.WHITE) -> void:
     var width := ThemeDB.fallback_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
     _text(text, Vector2((hud.get_viewport_rect().size.x - width) / 2.0, y), size, color)
 

@@ -611,8 +611,12 @@ func _test_breach() -> void:
     _check(game.paused and game.player.position == start, "Pause must halt shooter simulation.")
     game._unhandled_input(_button(JOY_BUTTON_START))
     var mouse := InputEventMouseMotion.new()
-    mouse.relative = Vector2(30, 10000)
+    mouse.relative = Vector2(5, 100)
+    mouse.screen_relative = Vector2(30, 10000)
+    var yaw_before: float = game.player.rotation.y
     game._unhandled_input(mouse)
+    _check(is_equal_approx(game.player.rotation.y, yaw_before - 30.0 * 0.0028),
+        "Resolution scaling must not change mouse sensitivity.")
     _check(
         game.player.rotation.y < 0.0 and is_equal_approx(game.camera.rotation.x, -1.1),
         "Mouse look must turn and clamp vertical aim."
@@ -658,6 +662,7 @@ func _test_breach() -> void:
         "Station walls must block gunfire and enemy sight."
     )
     guard.active = true
+    guard.path_timer = 0.0
     game._update_guards(0.1)
     _check(
         guard.body.velocity.z < 0.0, "Aware guards must pursue the player through the station path."

@@ -47,12 +47,12 @@ PlayStation controllers use Cross for A, Circle for B, Square for X, Triangle fo
 | Control             | Action                                                                           |
 |---------------------|----------------------------------------------------------------------------------|
 | D-pad or left stick | Menu navigation and player movement.                                             |
-| A                   | Game launch, Invaders fire, and restart.                                         |
+| A                   | Game launch, shooting, and restart.                                              |
 | B                   | Back, journal close, or return to the menu. Invaders returns to its title first. |
 | Start               | Pause or resume.                                                                 |
 | X                   | Forest journal or Snake wrap mode before a run and after game over.              |
 | Y                   | Forest time advance.                                                             |
-| RB                  | Forest running while held.                                                       |
+| RB                  | Forest and Neon Breach running while held.                                       |
 
 Use left or right to adjust the focused volume slider.
 Keyboard and mouse controls remain available.
