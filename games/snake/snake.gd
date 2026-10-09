@@ -360,7 +360,7 @@ func step() -> void:
         bonus_active = false
         near_rewarded = false
         swallow_age = 0.0
-        play("bonus")
+        play("bonus", pow(2.0, COMBO_NOTES[combo - 1] / 12.0))
     else:
         snake.pop_back()
         if power_active and head == power_pos:

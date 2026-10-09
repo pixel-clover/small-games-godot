@@ -759,7 +759,7 @@ func _move(delta: float) -> void:
                     var steps: Array = snd["steps"]
                     var terrain := _terrain()
                     _play(steps[terrain], [-23.0, -21.0, -19.0][terrain] + randf_range(-1.0, 1.0),
-                        randf_range(0.9, 1.1))
+                        [0.9, 1.15, 0.8][terrain] * randf_range(0.95, 1.05))
     else:
         anim_t = 0.0
         last_phase = -1
