@@ -256,6 +256,7 @@ func _ready() -> void:
     vig.centered = false
     add_child(vig)
     ui = Node2D.new()
+    ui.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
     add_child(ui)
     ui.draw.connect(_draw_ui)
     if arg_biome >= 0:
@@ -724,7 +725,7 @@ func _process(delta: float) -> void:
     front.queue_redraw()
     ui.queue_redraw()
     if shot_path != "" and frames == shot_frame:
-        get_viewport().get_texture().get_image().save_png(shot_path)
+        get_window().get_texture().get_image().save_png(shot_path)
         get_tree().quit()
 
 
@@ -1658,8 +1659,9 @@ func _draw_front() -> void:
 
 func _txt(n: CanvasItem, p: Vector2, s: String, col: Color, size: int=8) -> void:
     var font := ThemeDB.fallback_font
-    n.draw_string(font, p + Vector2(1, 1), s, HORIZONTAL_ALIGNMENT_LEFT, -1, size,
-        Color(0, 0, 0, col.a * 0.7))
+    if journal_amount == 0.0:
+        n.draw_string(font, p + Vector2.ONE / maxf(ui.scale.x, 1.0), s,
+            HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0, 0, 0, col.a * 0.5))
     n.draw_string(font, p, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
 
 

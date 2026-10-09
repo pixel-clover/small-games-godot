@@ -52,6 +52,8 @@ func _send(event: InputEvent) -> void:
 
 
 func _run() -> void:
+    _check((ThemeDB.fallback_font as FontFile).multichannel_signed_distance_field,
+        "The UI font must remain smooth when scaled.")
     for binding in [
         ["ui_accept", JOY_BUTTON_A],
         ["ui_cancel", JOY_BUTTON_B],
@@ -444,6 +446,7 @@ func _run() -> void:
     )
 
     await _test_transitions()
+    await _test_forest_ui()
     current_scene.queue_free()
     await process_frame
     # Let the audio server release playback instances before engine shutdown.
@@ -513,3 +516,36 @@ func _test_transitions() -> void:
             current_scene.scene_file_path == "res://menu/menu.tscn",
             "Escape must return to the launcher from " + path
         )
+
+
+func _test_forest_ui() -> void:
+    change_scene_to_file("res://games/forest/forest.tscn")
+    await process_frame
+    await process_frame
+    var host := current_scene as Control
+    var container := host.get("container") as SubViewportContainer
+    var ui := host.get("ui") as Node2D
+    var viewport := container.get_child(0) as SubViewport
+    var world := viewport.get_child(0) as Node2D
+    world.set("no_save", true)
+    world.set_process(false)
+    _check(ui.get_viewport() == root and viewport.size == Vector2i(320, 180),
+        "Forest text must use the window viewport while the art stays at 320 by 180.")
+    for resolution in [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(2560, 1440),
+        Vector2i(2048, 1152)]:
+        root.size = resolution
+        await process_frame
+        host.call("_layout")
+        var scale_factor := floorf(minf(resolution.x / 320.0, resolution.y / 180.0))
+        _check(ui.scale == Vector2.ONE * scale_factor and ui.position == container.position,
+            "The window UI must align with the forest at " + str(resolution))
+    for discovery: Dictionary in world.get("TYPES"):
+        for field in ["text", "hint"]:
+            var text: String = discovery[field]
+            if field == "hint":
+                text = "Hint: " + text
+            var lines: Array[String] = world.call("_wrap", text, 106.0, 8)
+            _check(lines.size() <= 2, "Journal entries must fit without clipping: " + text)
+    change_scene_to_file("res://menu/menu.tscn")
+    await process_frame
+    await process_frame

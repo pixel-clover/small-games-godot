@@ -6,6 +6,7 @@ const VW := 320
 const VH := 180
 
 var container: SubViewportContainer
+var ui: Node2D
 
 
 func _ready() -> void:
@@ -29,6 +30,9 @@ func _ready() -> void:
     var world := Node2D.new()
     world.set_script(load("res://games/forest/forest_world.gd"))
     viewport.add_child(world)
+    # Draw text at window resolution while the forest keeps its pixel canvas.
+    ui = world.get("ui") as Node2D
+    ui.reparent(self)
 
     get_viewport().size_changed.connect(_layout)
     _layout()
@@ -40,6 +44,8 @@ func _layout() -> void:
     container.size = Vector2(VW, VH)
     container.scale = Vector2(s, s)
     container.position = ((vs - Vector2(VW, VH) * s) / 2.0).floor()
+    ui.scale = container.scale
+    ui.position = container.position
 
 
 func _exit_tree() -> void:
