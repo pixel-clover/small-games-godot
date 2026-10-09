@@ -10,7 +10,21 @@ A collection of retro arcade games and ambient art experiments built in Godot ga
 
 ### Quickstart
 
-To be added.
+Run the project with Godot 4.3 or newer from your terminal:
+
+```bash
+godot --path .
+```
+
+If you use Nix, run:
+
+```bash
+nix develop --command godot --path .
+```
+
+You can also open the project folder in the Godot editor and press `F5`.
+Use the arrow keys to select a game from the launcher menu, and press `Enter` to start.
+Press `Esc` during any game to return to the launcher menu.
 
 ---
 
