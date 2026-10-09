@@ -3,6 +3,7 @@ extends SceneTree
 const SnakeGame := preload("res://games/snake/snake.gd")
 const InvadersGame := preload("res://games/space_invaders/invaders.gd")
 const ForestWorld := preload("res://games/forest/forest_world.gd")
+const BreachGame := preload("res://games/neon_breach/breach.gd")
 
 var failures := 0
 var checks := 0
@@ -31,7 +32,7 @@ func _event(action: String) -> InputEventAction:
     return event
 
 
-func _button(button: JoyButton, pressed: bool = true, device: int = 0) -> InputEventJoypadButton:
+func _button(button: JoyButton, pressed: bool=true, device: int=0) -> InputEventJoypadButton:
     var event := InputEventJoypadButton.new()
     event.button_index = button
     event.pressed = pressed
@@ -463,11 +464,13 @@ func _run() -> void:
     )
 
     await _test_transitions()
+    await _test_breach()
     await _test_forest_ui()
     current_scene.queue_free()
     await process_frame
-    # Let the audio server release playback instances before engine shutdown.
-    await create_timer(0.1).timeout
+    # The audio thread uses real time even when tests use --fixed-fps.
+    OS.delay_msec(100)
+    await process_frame
     print("Gameplay checks: %d passed, %d failed." % [checks - failures, failures])
     quit(1 if failures > 0 else 0)
 
@@ -523,7 +526,8 @@ func _test_transitions() -> void:
     for path in [
         "res://games/snake/snake.tscn",
         "res://games/space_invaders/invaders.tscn",
-        "res://games/forest/forest.tscn"
+        "res://games/forest/forest.tscn",
+        "res://games/neon_breach/breach.tscn"
     ]:
         change_scene_to_file("res://menu/menu.tscn")
         await process_frame
@@ -532,9 +536,10 @@ func _test_transitions() -> void:
             [
                 "res://games/forest/forest.tscn",
                 "res://games/snake/snake.tscn",
-                "res://games/space_invaders/invaders.tscn"
+                "res://games/space_invaders/invaders.tscn",
+                "res://games/neon_breach/breach.tscn"
             ]
-            . find(path)
+                .find(path)
         )
         var card: Button = current_scene.get("cards")[index]
         for i in index:
@@ -542,7 +547,7 @@ func _test_transitions() -> void:
             _send(_button(JOY_BUTTON_DPAD_DOWN, false))
             await process_frame
         _check(card.has_focus(), "The D-pad must select the correct launcher card.")
-        if index == 2:
+        if index == 3:
             _send(_button(JOY_BUTTON_DPAD_DOWN))
             _send(_button(JOY_BUTTON_DPAD_DOWN, false))
             await process_frame
@@ -580,6 +585,193 @@ func _test_transitions() -> void:
             current_scene.scene_file_path == "res://menu/menu.tscn",
             "Escape must return to the launcher from " + path
         )
+
+
+func _test_breach() -> void:
+    var game := BreachGame.new()
+    root.add_child(game)
+    game.set_physics_process(false)
+    await physics_frame
+    await physics_frame
+    _check(
+        game.guards_remaining() == 6 and game.ammo == 24 and game.health == 100,
+        "The shooter must start with six guards, health, and ammunition."
+    )
+    for cell: Vector2i in BreachGame.GUARD_CELLS + [BreachGame.EXIT, Vector2i(13, 1)]:
+        _check(
+            not game.pathfinder.get_id_path(BreachGame.START, cell).is_empty(),
+            "Every guard and objective must be reachable: " + str(cell)
+        )
+    game._unhandled_input(_button(JOY_BUTTON_A))
+    _check(game.state == BreachGame.State.PLAYING, "The controller must start Neon Breach.")
+    await physics_frame
+    await physics_frame
+    game._unhandled_input(_button(JOY_BUTTON_START))
+    var start: Vector3 = game.player.position
+    game._physics_process(1.0)
+    _check(game.paused and game.player.position == start, "Pause must halt shooter simulation.")
+    game._unhandled_input(_button(JOY_BUTTON_START))
+    var age_before: float = game.age
+    game.notification(MainLoop.NOTIFICATION_APPLICATION_FOCUS_OUT)
+    game._physics_process(0.5)
+    _check(game.paused and game.age == age_before and game.player.position == start and
+        Input.mouse_mode == Input.MOUSE_MODE_VISIBLE,
+        "Losing window focus must pause the shooter and release the mouse.")
+    game._unhandled_input(_button(JOY_BUTTON_START))
+    _check(game.paused, "Background controller input must not resume the shooter.")
+    game.notification(MainLoop.NOTIFICATION_APPLICATION_FOCUS_IN)
+    _check(game.paused, "Returning window focus must wait for an explicit resume.")
+    game._unhandled_input(_button(JOY_BUTTON_START))
+    _check(not game.paused, "Start must resume the shooter after focus returns.")
+    var mouse := InputEventMouseMotion.new()
+    mouse.relative = Vector2(5, 100)
+    mouse.screen_relative = Vector2(30, 10000)
+    var yaw_before: float = game.player.rotation.y
+    game._unhandled_input(mouse)
+    _check(is_equal_approx(game.player.rotation.y, yaw_before - 30.0 * 0.0028),
+        "Resolution scaling must not change mouse sensitivity.")
+    _check(
+        game.player.rotation.y < 0.0 and is_equal_approx(game.camera.rotation.x, -1.1),
+        "Mouse look must turn and clamp vertical aim."
+    )
+    game.player.rotation.y = 0.0
+    game.camera.rotation.x = 0.0
+    _send(_motion(JOY_AXIS_RIGHT_X, 0.8))
+    game._physics_process(0.01)
+    _send(_motion(JOY_AXIS_RIGHT_X, 0.0))
+    _check(game.player.rotation.y < 0.0, "The right stick must turn the shooter camera.")
+    _check(
+        _motion(JOY_AXIS_TRIGGER_RIGHT, 0.9).is_action_pressed("breach_fire"),
+        "The controller trigger must fire the shooter weapon."
+    )
+    _send(_motion(JOY_AXIS_RIGHT_Y, -0.8))
+    game._physics_process(0.01)
+    _send(_motion(JOY_AXIS_RIGHT_Y, 0.0))
+    _check(game.camera.rotation.x > 0.0, "Right-stick up must aim upward.")
+    var guard: BreachGame.Guard = game.guards[0]
+    game.player.position = game._cell_position(Vector2i(3, 10))
+    guard.body.position = game._cell_position(Vector2i(5, 10))
+    game.player.rotation.y = -PI / 2.0
+    game.camera.rotation.x = 0.0
+    await physics_frame
+    await physics_frame
+    game.fire_cooldown = 0.0
+    game.fire()
+    _check(
+        guard.hp == 1 and game.ammo == 23 and game.hit_marker > 0.0,
+        "A hitscan shot must hit the aimed guard and consume one round."
+    )
+    game.fire()
+    _check(game.ammo == 23, "The fire cooldown must prevent repeated instant shots.")
+    game.player.position = game._cell_position(Vector2i(2, 7))
+    guard.body.position = game._cell_position(Vector2i(2, 10))
+    game.player.rotation.y = PI
+    await physics_frame
+    await physics_frame
+    game.fire_cooldown = 0.0
+    game.fire()
+    _check(
+        guard.hp == 1 and not game._can_see_player(guard),
+        "Station walls must block gunfire and enemy sight."
+    )
+    guard.active = true
+    guard.path_timer = 0.0
+    game._update_guards(0.1)
+    _check(
+        guard.body.velocity.z < 0.0, "Aware guards must pursue the player through the station path."
+    )
+    game.player.position = game._cell_position(Vector2i(2, 7))
+    game.player.rotation.y = 0.0
+    _send(_event("breach_back"))
+    for i in 20:
+        await physics_frame
+        game._physics_process(1.0 / 60.0)
+    Input.action_release("breach_back")
+    _check(game.player.position.z < 20.0, "Station walls must block player movement.")
+    game._hit_guard(guard)
+    var points: int = game.score
+    game._hit_guard(guard)
+    _check(
+        points == 100 and game.score == points and game.guards_remaining() == 5,
+        "A guard must award its score only once."
+    )
+    game.ammo = 0
+    game.fire_cooldown = 0.0
+    game.fire()
+    _check(game.ammo == 0, "Empty fire must not create negative ammunition.")
+    game.health = 90
+    game.player.position = game._cell_position(Vector2i(5, 11))
+    game._update_pickups()
+    _check(game.health == 100, "Medkits must cap health at 100.")
+    game.player.position = game._cell_position(Vector2i(3, 5))
+    game._update_pickups()
+    _check(game.ammo == 18, "Ammo crates must refill the weapon.")
+    game.player.position = game._cell_position(Vector2i(13, 1))
+    game._update_pickups()
+    _check(
+        game.has_key and not game.exit_ready(),
+        "The key alone must not unlock an uncleared station."
+    )
+    for enemy in game.guards:
+        while enemy.hp > 0:
+            game._hit_guard(enemy)
+    _check(game.exit_ready(), "The key and cleared guards must unlock extraction.")
+    game.player.position = game._cell_position(BreachGame.EXIT)
+    await physics_frame
+    await physics_frame
+    game._physics_process(1.0 / 60.0)
+    points = game.score
+    game.finish(true)
+    _check(
+        (
+            game.state == BreachGame.State.WON
+            and game.score == points
+            and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE
+        ),
+        "Victory must score once and release the mouse."
+    )
+    game._start_run()
+    _check(
+        game.guards_remaining() == 6 and game.score == 0 and not game.has_key,
+        "Restart must reset enemies, score, and the keycard."
+    )
+    game.invulnerable = 0.0
+    game.damage(1000)
+    _check(
+        game.health == 0 and game.state == BreachGame.State.DEAD,
+        "Lethal damage must end the run without negative health."
+    )
+    game.queue_free()
+    await process_frame
+    await _test_guard_collision()
+
+
+func _test_guard_collision() -> void:
+    var game := BreachGame.new()
+    root.add_child(game)
+    game.set_physics_process(false)
+    game.state = BreachGame.State.PLAYING
+    game.invulnerable = 1000.0
+    game.player.position = game._cell_position(Vector2i(3, 10))
+    var front: BreachGame.Guard = game.guards[0]
+    var back: BreachGame.Guard = game.guards[1]
+    front.body.position = game._cell_position(Vector2i(5, 10))
+    back.body.position = game._cell_position(Vector2i(6, 10))
+    back.active = true
+    for i in range(2, game.guards.size()):
+        game.guards[i].hp = 0
+        game.guards[i].body.collision_layer = 0
+    await physics_frame
+    await physics_frame
+    _check(game._can_see_player(front) and not game._can_see_player(back),
+        "A guard must block another guard's line of fire without blocking its own.")
+    for i in 240:
+        await physics_frame
+        game._update_guards(1.0 / 60.0)
+    _check(front.body.position.distance_to(back.body.position) >= 0.5,
+        "Pursuing guards must not overlap.")
+    game.queue_free()
+    await process_frame
 
 
 func _test_forest_ui() -> void:

@@ -38,7 +38,7 @@ nix develop --command godot --path .
 
 ---
 
-### Controller Controls
+### General Controls
 
 Controllers use Godot's standard gamepad mappings.
 The labels below use the Xbox layout.
@@ -47,17 +47,35 @@ PlayStation controllers use Cross for A, Circle for B, Square for X, Triangle fo
 | Control             | Action                                                                           |
 |---------------------|----------------------------------------------------------------------------------|
 | D-pad or left stick | Menu navigation and player movement.                                             |
-| A                   | Game launch, Invaders fire, and restart.                                         |
+| A                   | Game launch, shooting, and restart.                                              |
 | B                   | Back, journal close, or return to the menu. Invaders returns to its title first. |
 | Start               | Pause or resume.                                                                 |
 | X                   | Forest journal or Snake wrap mode before a run and after game over.              |
 | Y                   | Forest time advance.                                                             |
-| RB                  | Forest running while held.                                                       |
+| RB                  | Forest and Neon Breach running while held.                                       |
 
 Use left or right to adjust the focused volume slider.
 Keyboard and mouse controls remain available.
 
 ### Games
+
+#### Neon Breach
+
+A retro first-person shooter set in an industrial station.
+Clear six guards, collect the keycard, and reach the green exit pad.
+Health and ammo pickups help you finish the run.
+Scores are saved locally.
+Everything, including the station, enemy sprites, weapons, and sound effects are generated in code.
+
+| Keyboard and Mouse  | Controller          | Action                  |
+|---------------------|---------------------|-------------------------|
+| WASD or arrows      | Left stick or D-pad | Movement and strafing.  |
+| Mouse or Q/E        | Right stick         | Look and turn.          |
+| Left click or Space | RT or A             | Fire.                   |
+| Shift               | RB                  | Run.                    |
+| P                   | Start               | Pause or resume.        |
+| Enter               | A                   | Start or retry.         |
+| Esc                 | B                   | Return to the launcher. |
 
 #### Forest Walk
 
