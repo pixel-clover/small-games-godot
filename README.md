@@ -38,6 +38,17 @@ nix develop --command godot --path .
 
 ---
 
+### Games
+
+#### Forest Walk
+
+<br>
+<div align="center">
+  <img alt="UI" src="docs/assets/screenshots/forest_walk_v1_1.png" width="99%">
+</div>
+
+---
+
 ### Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) to learn how to contribute.
