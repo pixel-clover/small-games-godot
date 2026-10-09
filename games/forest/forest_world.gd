@@ -1608,7 +1608,9 @@ func _draw_front() -> void:
         var bt: Texture2D = frames_b[1 + int(float(b["t"]) * 14.0 + float(b["ph"])) % 2]
         var bp := Vector2(floorf(float(b["x"]) - cam_x + VW / 2.0), floorf(float(b["y"])))
         var fl := -1.0 if float(b["vx"]) < 0.0 else 1.0
-        f.draw_set_transform_matrix(Transform2D(Vector2(-fl, 0), Vector2(0, 1), bp))
+        var transform := Transform2D(Vector2(fl, 0), Vector2(0, 1), bp)
+        assert(transform.x.x * float(b["vx"]) >= 0.0, "Birds must face their flight direction.")
+        f.draw_set_transform_matrix(transform)
         f.draw_texture(bt, Vector2(-bt.get_width() / 2.0, -bt.get_height()),
             amb.lerp(Color.WHITE, 0.3))
         f.draw_set_transform_matrix(Transform2D.IDENTITY)

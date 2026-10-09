@@ -59,7 +59,7 @@ static func _blob(img: Image, cx: float, cy: float, rx: float, ry: float, tones:
             var d := dx * dx + dy * dy
             var limit := 1.0
             if d > 0.55:
-                limit += (rng.randf() - 0.5) * 0.4
+                limit -= rng.randf() * 0.2
             if d < limit:
                 var shade := 0.58 - dx * 0.3 - dy * 0.5 + (rng.randf() - 0.5) * 0.3
                 _px(img, x, y, tones[clampi(int(shade * n), 0, n - 1)])
@@ -149,6 +149,8 @@ static func pine(w: int, h: int, seed_: int, haze: bool=false) -> ImageTexture:
             var x0 := int(cx - half)
             var x1 := int(cx + half)
             for x in range(x0, x1 + 1):
+                if t > 0.88 and rng.randf() < (t - 0.88) * 6.0:
+                    continue
                 var u := float(x - x0) / maxf(float(x1 - x0), 1.0)
                 var shade := 0.85 - u * 0.65 + (1.0 - t) * 0.1 - t * 0.12 + (rng.randf() - 0.5) * 0.3
                 _px(img, x, y, tones[clampi(int(shade * 5.0), 0, 4)])
@@ -244,11 +246,12 @@ static func bush(w: int, h: int, seed_: int, flowering: bool=false) -> ImageText
     var blobs: Array = []
     for i in 6:
         var rx := w * rng.randf_range(0.2, 0.32)
-        var ry := minf(rx * 0.9, h * 0.5)
-        blobs.append(Vector3(rng.randf_range(rx, w - rx), rng.randf_range(ry, h - ry * 0.6), rx))
+        var ry := minf(rx * 0.9, (h - 3.0) * 0.5)
+        blobs.append(Vector3(rng.randf_range(rx + 1.0, w - rx - 2.0),
+            rng.randf_range(ry + 1.0, h - ry - 2.0), rx))
     blobs.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.y < b.y)
     for b: Vector3 in blobs:
-        _blob(img, b.x, b.y, b.z, minf(b.z * 0.9, h * 0.5), tones, rng)
+        _blob(img, b.x, b.y, b.z, minf(b.z * 0.9, (h - 3.0) * 0.5), tones, rng)
     if flowering:
         var col: Color = [Color("f4c2d7"), Color("fff4f0"), Color("f7e27a")][rng.randi() % 3]
         for i in 14:
@@ -264,6 +267,7 @@ static func fern(w: int, h: int, seed_: int, fronds: int=9) -> ImageTexture:
     var rng := _rng(seed_)
     var img := _new_img(w, h)
     var tones := _tones(rng.randf_range(-0.02, 0.03), 1.0)
+    var width_scale := minf(1.0, (w / 2.0 - 3.0) / (h * 1.04))
     for i in fronds:
         var ang := lerpf(-1.2, 1.2, (i + 0.5) / fronds) + rng.randf_range(-0.12, 0.12)
         var length := h * rng.randf_range(0.7, 1.0) * (1.0 - absf(ang) * 0.2)
@@ -272,11 +276,11 @@ static func fern(w: int, h: int, seed_: int, fronds: int=9) -> ImageTexture:
         for s in steps:
             var t := float(s) / steps
             var a := ang + signf(ang) * t * 0.95
-            pos += Vector2(sin(a), -cos(a)) * 0.65
+            pos += Vector2(sin(a) * width_scale, -cos(a)) * 0.65
             var idx := clampi(int(1.0 + t * 3.2 + (rng.randf() - 0.5)), 0, 4)
             _px(img, int(pos.x), int(pos.y), tones[idx])
             if s % 2 == 0 and t > 0.1:
-                var perp := Vector2(cos(a), sin(a))
+                var perp := Vector2(cos(a) * width_scale, sin(a))
                 var lc: Color = tones[clampi(idx - 1, 0, 4)]
                 _px(img, int(pos.x + perp.x * 1.5), int(pos.y + perp.y * 1.5 + 1.0), lc)
                 _px(img, int(pos.x - perp.x * 1.5), int(pos.y - perp.y * 1.5 + 1.0), lc)
@@ -387,7 +391,8 @@ static func hanging_leaves(w: int, h: int, seed_: int) -> ImageTexture:
     var blobs: Array = []
     for i in 14:
         var y := rng.randf_range(0.0, h * 0.55) * (1.0 - absf(i / 14.0 - 0.5) * 0.9)
-        blobs.append(Vector3(rng.randf_range(4.0, w - 4.0), y, rng.randf_range(w * 0.08, w * 0.16)))
+        var radius := rng.randf_range(w * 0.08, w * 0.16)
+        blobs.append(Vector3(rng.randf_range(radius + 1.0, w - radius - 2.0), y, radius))
     blobs.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.y < b.y)
     for b: Vector3 in blobs:
         _blob(img, b.x, b.y, b.z, b.z * 0.8, tones, rng)

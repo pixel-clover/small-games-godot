@@ -52,6 +52,7 @@ func _send(event: InputEvent) -> void:
 
 
 func _run() -> void:
+    _test_forest_art()
     _check((ThemeDB.fallback_font as FontFile).multichannel_signed_distance_field,
         "The UI font must remain smooth when scaled.")
     for binding in [
@@ -429,6 +430,22 @@ func _run() -> void:
     forest._process(0.1)
     _check(forest.player_pos == pos, "The journal must halt movement.")
     _check(forest.journal_icons.size() == 4, "Journal ink textures must be cached during setup.")
+    forest.fly_birds = [
+        {"x": forest.player_pos.x, "y": 80.0, "vx": 40.0, "vy": -30.0,
+            "t": 0.0, "v": 0, "ph": 0.0},
+        {"x": forest.player_pos.x, "y": 90.0, "vx": -40.0, "vy": -30.0,
+            "t": 0.0, "v": 0, "ph": 0.0},
+    ]
+    forest._update_particles(0.1)
+    _check(float(forest.fly_birds[0]["x"]) > forest.player_pos.x and
+        float(forest.fly_birds[1]["x"]) < forest.player_pos.x,
+        "Flying birds must move in both directions.")
+    var bird_draws: Array[int] = [0]
+    forest.front.draw.connect(func() -> void: bird_draws[0] += 1)
+    forest.front.queue_redraw()
+    await process_frame
+    await process_frame
+    _check(bird_draws[0] > 0, "Bird facing checks must execute during drawing.")
     forest.queue_free()
     await process_frame
 
@@ -453,6 +470,53 @@ func _run() -> void:
     await create_timer(0.1).timeout
     print("Gameplay checks: %d passed, %d failed." % [checks - failures, failures])
     quit(1 if failures > 0 else 0)
+
+
+func _test_forest_art() -> void:
+    for seed_value in 16:
+        var textures: Array[Texture2D] = [
+            ForestArt.bush(40, 24, 500 + seed_value),
+            ForestArt.bush(26, 18, 600 + seed_value, true),
+            ForestArt.hanging_leaves(130, 46, 1300 + seed_value),
+            ForestArt.fern(70, 46, 1400 + seed_value, 11),
+        ]
+        for i in textures.size():
+            var image := textures[i].get_image()
+            var clipped := false
+            for y in image.get_height():
+                clipped = (
+                    clipped
+                    or image.get_pixel(0, y).a > 0.0
+                    or image.get_pixel(image.get_width() - 1, y).a > 0.0
+                )
+            if i < 2:
+                for x in image.get_width():
+                    clipped = clipped or image.get_pixel(x, image.get_height() - 1).a > 0.0
+            _check(
+                not clipped, "Foliage must not reach clipped image edges: %d/%d" % [i, seed_value]
+            )
+        var image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+        var rng := RandomNumberGenerator.new()
+        rng.seed = seed_value
+        ForestArt._blob(image, 32.0, 32.0, 18.0, 12.0, ForestArt.LEAF, rng)
+        var outside := false
+        for y in 64:
+            for x in 64:
+                if image.get_pixel(x, y).a > 0.0:
+                    var distance := Vector2((x - 32.0) / 18.0, (y - 32.0) / 12.0)
+                    outside = outside or distance.length_squared() >= 1.0
+        _check(not outside, "Tree leaf clusters must stay within their drawing bounds.")
+        var pine := ForestArt.pine(100, 180, seed_value).get_image()
+        var tips: Array[int] = []
+        for x in range(25, 75):
+            var tip := -1
+            for y in pine.get_height():
+                var pixel := pine.get_pixel(x, y)
+                if pixel.a > 0.0 and pixel.g > pixel.r:
+                    tip = y
+            if tip >= 0 and not tips.has(tip):
+                tips.append(tip)
+        _check(tips.size() > 1, "Pine branches must not end in a flat horizontal cut.")
 
 
 func _test_transitions() -> void:
