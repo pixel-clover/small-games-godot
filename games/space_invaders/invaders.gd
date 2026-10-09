@@ -924,9 +924,13 @@ func _draw() -> void:
         _text("PAUSED - P resume, Esc title", H / 2.0, 24, Color.YELLOW)
 
 
-func _draw_cannon(pos: Vector2, color: Color, cannon_scale: float=1.0) -> void:
-    draw_rect(Rect2(pos + Vector2(-PLAYER_W / 2.0, 8) * cannon_scale,
-        Vector2(PLAYER_W, 8) * cannon_scale), color)
+func _draw_cannon(pos: Vector2, color: Color, cannon_scale: float = 1.0) -> void:
+    draw_rect(
+        Rect2(
+            pos + Vector2(-PLAYER_W / 2.0, 8) * cannon_scale, Vector2(PLAYER_W, 8) * cannon_scale
+        ),
+        color
+    )
     draw_rect(Rect2(pos + Vector2(-3, 0) * cannon_scale, Vector2(6, 8) * cannon_scale), color)
 
 

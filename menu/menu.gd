@@ -19,8 +19,14 @@ func _ready() -> void:
         players.append(p)
     sounds = {
         "move": Sfx.build([[660, 880, 0.035, "sine", 0.2]]),
-        "launch": Sfx.build([[523, 523, 0.06, "sine", 0.3],
-            [659, 659, 0.06, "sine", 0.3], [784, 784, 0.09, "sine", 0.3]]),
+        "launch":
+        Sfx.build(
+            [
+                [523, 523, 0.06, "sine", 0.3],
+                [659, 659, 0.06, "sine", 0.3],
+                [784, 784, 0.09, "sine", 0.3]
+            ]
+        ),
         "cancel": Sfx.build([[440, 220, 0.12, "sine", 0.25]]),
         "volume": Sfx.build([[659, 659, 0.04, "sine", 0.3], [784, 784, 0.06, "sine", 0.3]]),
     }
@@ -42,12 +48,24 @@ func _ready() -> void:
     title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     box.add_child(title)
 
-    var first := _add_button(box, "Forest Walk", "res://games/forest/forest.tscn",
-        "Discovered: %d" % int(Save.get_value("forest", "total", 0)))
-    _add_button(box, "Snake", "res://games/snake/snake.tscn",
-        "Best: %d   Wrap: %d" % [Save.get_high("snake"), Save.get_high("snake_wrap")])
-    _add_button(box, "Space Invaders", "res://games/space_invaders/invaders.tscn",
-        "Best: %d" % Save.get_high("invaders"))
+    var first := _add_button(
+        box,
+        "Forest Walk",
+        "res://games/forest/forest.tscn",
+        "Discovered: %d" % int(Save.get_value("forest", "total", 0))
+    )
+    _add_button(
+        box,
+        "Snake",
+        "res://games/snake/snake.tscn",
+        "Best: %d   Wrap: %d" % [Save.get_high("snake"), Save.get_high("snake_wrap")]
+    )
+    _add_button(
+        box,
+        "Space Invaders",
+        "res://games/space_invaders/invaders.tscn",
+        "Best: %d" % Save.get_high("invaders")
+    )
 
     var vol_row := HBoxContainer.new()
     vol_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -60,9 +78,11 @@ func _ready() -> void:
     slider.step = 0.05
     slider.value = Save.get_volume()
     slider.custom_minimum_size = Vector2(160, 24)
-    slider.value_changed.connect(func(value: float) -> void:
-        Save.set_volume(value)
-        _play("volume"))
+    slider.value_changed.connect(
+        func(value: float) -> void:
+            Save.set_volume(value)
+            _play("volume")
+    )
     vol_row.add_child(slider)
     box.add_child(vol_row)
 
@@ -113,9 +133,11 @@ func _exit_tree() -> void:
 
 
 func _connect_focus(button: Button) -> void:
-    button.focus_entered.connect(func() -> void:
-        _play("move")
-        _focus(button, true))
+    button.focus_entered.connect(
+        func() -> void:
+            _play("move")
+            _focus(button, true)
+    )
     button.focus_exited.connect(_focus.bind(button, false))
 
 
@@ -125,8 +147,12 @@ func _focus(button: Button, focused: bool) -> void:
     button.pivot_offset = button.size / 2.0
     var tween := create_tween()
     focus_tweens[button] = tween
-    tween.tween_property(button, "scale", Vector2.ONE * (1.035 if focused else 1.0), 0.2) \
-        .set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+    (
+        tween
+        . tween_property(button, "scale", Vector2.ONE * (1.035 if focused else 1.0), 0.2)
+        . set_trans(Tween.TRANS_BACK)
+        . set_ease(Tween.EASE_OUT)
+    )
 
 
 func _activate(scene: String) -> void:
@@ -166,8 +192,9 @@ func _draw_card(button: Button, kind: int) -> void:
         1:
             for i in 5:
                 var p := Vector2(14 + i * 9, 32 + sin(age * 3 - i * 0.5) * 6)
-                button.draw_rect(Rect2(p, Vector2(8, 8)),
-                    Color.GREEN_YELLOW if i == 4 else Color.GREEN)
+                button.draw_rect(
+                    Rect2(p, Vector2(8, 8)), Color.GREEN_YELLOW if i == 4 else Color.GREEN
+                )
             button.draw_circle(Vector2(60, 20), 3, Color.TOMATO)
         2:
             for i in 3:

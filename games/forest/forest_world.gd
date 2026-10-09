@@ -512,8 +512,7 @@ func _update_audio(delta: float) -> void:
 func _blend_audio(delta: float) -> void:
     audio_fade = minf(3.0, audio_fade + delta)
     for i in BIOMES.size():
-        audio_weights[i] = lerpf(audio_from[i], 1.0 if i == cur_biome else 0.0,
-            audio_fade / 3.0)
+        audio_weights[i] = lerpf(audio_from[i], 1.0 if i == cur_biome else 0.0, audio_fade / 3.0)
 
 
 func _update_breadcrumbs(delta: float) -> void:
@@ -533,8 +532,9 @@ func _update_breadcrumbs(delta: float) -> void:
     if nearest.is_empty():
         return
     # Center the virtual listener on the wanderer while preserving left/right cues.
-    landmark_player.position = Vector2(VW / 2.0, VH / 2.0) + \
-        Vector2(float(nearest["x"]), float(nearest["y"])) - player_pos
+    landmark_player.position = (
+        Vector2(VW / 2.0, VH / 2.0) + Vector2(float(nearest["x"]), float(nearest["y"])) - player_pos
+    )
     landmark_player.stream = snd[str(nearest["kind"]) + "_cue"]
     landmark_player.volume_db = -24.0
     landmark_player.play()
@@ -542,6 +542,7 @@ func _update_breadcrumbs(delta: float) -> void:
 
 
 # ----------------------------------------------------------------- helpers
+
 
 static func _h(a: int, b: int) -> float:
     var h := (a * 374761393 + b * 668265263) & 0x7fffffff
@@ -766,8 +767,10 @@ func _terrain() -> int:
     for object: Dictionary in vis_flat:
         if object.get("kind", "") in ["pond", "puddle"]:
             var pos := Vector2(float(object["x"]), float(object["y"]))
-            if absf(pos.x - player_pos.x) < float(object.get("rx", 15.0)) and \
-                absf(pos.y - player_pos.y) < float(object.get("ry", 6.0)) + 3.0:
+            if (
+                absf(pos.x - player_pos.x) < float(object.get("rx", 15.0))
+                and absf(pos.y - player_pos.y) < float(object.get("ry", 6.0)) + 3.0
+            ):
                 return 2
     if cur_biome == 2:
         return 2
