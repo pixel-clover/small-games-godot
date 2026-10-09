@@ -38,6 +38,25 @@ nix develop --command godot --path .
 
 ---
 
+### Controller Controls
+
+Controllers use Godot's standard gamepad mappings.
+The labels below use the Xbox layout.
+PlayStation controllers use Cross for A, Circle for B, Square for X, Triangle for Y, and R1 for RB.
+
+| Control             | Action                                                                           |
+|---------------------|----------------------------------------------------------------------------------|
+| D-pad or left stick | Menu navigation and player movement.                                             |
+| A                   | Game launch, Invaders fire, and restart.                                         |
+| B                   | Back, journal close, or return to the menu. Invaders returns to its title first. |
+| Start               | Pause or resume.                                                                 |
+| X                   | Forest journal or Snake wrap mode before a run and after game over.              |
+| Y                   | Forest time advance.                                                             |
+| RB                  | Forest running while held.                                                       |
+
+Use left or right to adjust the focused volume slider.
+Keyboard and mouse controls remain available.
+
 ### Games
 
 #### Forest Walk

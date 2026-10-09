@@ -16,17 +16,17 @@ const BIOME_W := 750.0
 # Things the player can discover (shown in the journal in this order).
 const TYPES := [
     {"id": "glowmush", "name": "Glowcap", "text": "Tiny lamps that sip the moonlight.",
-        "hint": "Look in damp, dark places."},
+        "hint": "Little moons beneath damp roots."},
     {"id": "moonbloom", "name": "Moonbloom", "text": "Opens its petals for lantern light at night.",
-        "hint": "Blooms at night, near your lantern."},
+        "hint": "I open when light meets night."},
     {"id": "fox", "name": "Red Fox", "text": "Watches quietly, then trots away.",
-        "hint": "Shy, and keeps among the trees."},
+        "hint": "A red coat waits among the trees."},
     {"id": "shrine", "name": "Standing Stone", "text": "Someone carved a rune here long ago.",
-        "hint": "Often found among old ruins."},
+        "hint": "Old stone remembers a carved sign."},
     {"id": "pond", "name": "Still Pond", "text": "Holds the sky, and every ripple.",
-        "hint": "Follow the mist to find water."},
+        "hint": "A still mirror holds the sky."},
     {"id": "glade", "name": "Hidden Glade", "text": "An open gap where the light pools gently.",
-        "hint": "Look for a gap in the trees."},
+        "hint": "Where trees part, daylight rests."},
 ]
 
 # Biomes along the x axis.
@@ -118,6 +118,11 @@ var title_text := ""
 var fuel := 1.0
 var glow_k := 1.0
 var flick := 1.0
+var lantern_offset := Vector2.ZERO
+var lantern_velocity := Vector2.ZERO
+var discovery_left := 0.0
+var hud_alpha := 1.0
+var journal_amount := 0.0
 
 # State
 var paused := false
@@ -166,6 +171,7 @@ var fg_leaves: Array
 var fg_ferns: Array
 var player_r: Array
 var player_l: Array
+var journal_icons: Dictionary = {}
 
 # Layers drawn on top of the world
 var overlay: Node2D
@@ -184,14 +190,17 @@ var thread: Thread
 var snd := {}
 var sfx_pool: Array[AudioStreamPlayer] = []
 var sfx_next := 0
-var pad_player: AudioStreamPlayer
-var wind_player: AudioStreamPlayer
+var pad_players: Array[AudioStreamPlayer] = []
+var wind_players: Array[AudioStreamPlayer] = []
+var audio_weights := PackedFloat32Array([1.0, 0.0, 0.0, 0.0, 0.0])
+var audio_from := PackedFloat32Array([1.0, 0.0, 0.0, 0.0, 0.0])
+var audio_fade := 3.0
+var landmark_player: AudioStreamPlayer2D
+var landmark_pos := Vector2.ZERO
+var breadcrumb_timer := 0.0
 var cricket_player: AudioStreamPlayer
 var bird_timer := 4.0
 var pluck_timer := 6.0
-var key_t_down := false
-var key_j_down := false
-var key_p_down := false
 
 # Optional screenshot hook: godot ... -- --shot=/tmp/a.png --time=0.3 --x=500
 # extras: --journal --paused --biome=N --spot=kind [--on] --fuel=0.1 --found=1 --shotframe=N
@@ -247,6 +256,7 @@ func _ready() -> void:
     vig.centered = false
     add_child(vig)
     ui = Node2D.new()
+    ui.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
     add_child(ui)
     ui.draw.connect(_draw_ui)
     if arg_biome >= 0:
@@ -265,6 +275,13 @@ func _ready() -> void:
 func _exit_tree() -> void:
     if thread != null and thread.is_started():
         thread.wait_to_finish()
+    for player in pad_players + wind_players + sfx_pool:
+        player.stop()
+        player.stream = null
+    cricket_player.stop()
+    cricket_player.stream = null
+    landmark_player.stop()
+    landmark_player.stream = null
 
 
 func _build_art() -> void:
@@ -313,6 +330,18 @@ func _build_art() -> void:
     fox_l = fx[1]
     for c in [Color("8a6a4a"), Color("5a7fb0"), Color("b86a4a")]:
         bird_tex.append(ForestArt.bird_frames(c))
+    var sources := {"glowmush": glow_mush[0], "moonbloom": moon_open,
+        "fox": fox_r[0], "shrine": stones[0]}
+    for kind: String in sources:
+        var texture: Texture2D = sources[kind]
+        var ink := texture.get_image()
+        for y in ink.get_height():
+            for x in ink.get_width():
+                var pixel := ink.get_pixel(x, y)
+                var color := Color("704323").lerp(Color("bc8b52"), pixel.get_luminance())
+                color.a = pixel.a
+                ink.set_pixel(x, y, color)
+        journal_icons[kind] = ImageTexture.create_from_image(ink)
 
 
 func _build_particles() -> void:
@@ -382,12 +411,19 @@ func _setup_audio() -> void:
         var p := AudioStreamPlayer.new()
         add_child(p)
         sfx_pool.append(p)
-    pad_player = AudioStreamPlayer.new()
-    pad_player.volume_db = -15.0
-    add_child(pad_player)
-    wind_player = AudioStreamPlayer.new()
-    wind_player.volume_db = -22.0
-    add_child(wind_player)
+    for i in BIOMES.size():
+        var pad := AudioStreamPlayer.new()
+        pad.volume_db = -80.0
+        add_child(pad)
+        pad_players.append(pad)
+        var wind := AudioStreamPlayer.new()
+        wind.volume_db = -80.0
+        add_child(wind)
+        wind_players.append(wind)
+    landmark_player = AudioStreamPlayer2D.new()
+    landmark_player.max_distance = 150.0
+    landmark_player.attenuation = 1.5
+    add_child(landmark_player)
     cricket_player = AudioStreamPlayer.new()
     cricket_player.volume_db = -60.0
     add_child(cricket_player)
@@ -396,29 +432,39 @@ func _setup_audio() -> void:
 
 
 func _build_audio() -> void:
+    var winds: Array[AudioStreamWAV] = []
+    var pads: Array[AudioStreamWAV] = []
+    for i in BIOMES.size():
+        winds.append(ForestAudio.wind(i))
+        pads.append(ForestAudio.pad(i))
     var d := {
-        "wind": ForestAudio.wind(),
+        "winds": winds,
         "crickets": ForestAudio.crickets(),
         "birds": ForestAudio.birds(),
         "owl": ForestAudio.owl(),
         "steps": ForestAudio.footsteps(),
         "plucks": ForestAudio.plucks(),
-        "pad": ForestAudio.pad(),
+        "pads": pads,
         "chime": ForestAudio.chime(),
         "collect": ForestAudio.collect(),
         "flutter": ForestAudio.flutter(),
+        "shrine_cue": Sfx.build([[1047, 1047, 0.2, "sine", 0.2], [1568, 1568, 0.3, "sine", 0.1]]),
+        "pond_cue": Sfx.build([[280, 120, 0.25, "sine", 0.2], [190, 90, 0.2, "sine", 0.1]]),
     }
     _audio_ready.call_deferred(d)
 
 
 func _audio_ready(d: Dictionary) -> void:
     snd = d
-    wind_player.stream = snd["wind"]
-    wind_player.play()
+    if not is_inside_tree():
+        return
+    for i in BIOMES.size():
+        wind_players[i].stream = snd["winds"][i]
+        wind_players[i].play()
+        pad_players[i].stream = snd["pads"][i]
+        pad_players[i].play()
     cricket_player.stream = snd["crickets"]
     cricket_player.play()
-    pad_player.stream = snd["pad"]
-    pad_player.play()
 
 
 func _play(stream: AudioStream, db: float, pitch: float=1.0) -> void:
@@ -436,10 +482,15 @@ func _play_named(key: String, db: float, pitch: float=1.0) -> void:
 
 
 func _update_audio(delta: float) -> void:
+    _blend_audio(delta)
     if snd.is_empty():
         return
     cricket_player.volume_db = lerpf(-60.0, -27.0, clampf(night * 1.2 - 0.1, 0.0, 1.0))
-    wind_player.volume_db = -24.0 + sin(t * 0.2) * 3.0
+    for i in BIOMES.size():
+        var db := linear_to_db(maxf(audio_weights[i], 0.0001))
+        pad_players[i].volume_db = -15.0 + db
+        wind_players[i].volume_db = -24.0 + sin(t * 0.2) * 3.0 + db
+    _update_breadcrumbs(delta)
     bird_timer -= delta
     if bird_timer <= 0.0:
         if night < 0.4:
@@ -457,7 +508,41 @@ func _update_audio(delta: float) -> void:
         pluck_timer = randf_range(3.0, 8.0)
 
 
+func _blend_audio(delta: float) -> void:
+    audio_fade = minf(3.0, audio_fade + delta)
+    for i in BIOMES.size():
+        audio_weights[i] = lerpf(audio_from[i], 1.0 if i == cur_biome else 0.0, audio_fade / 3.0)
+
+
+func _update_breadcrumbs(delta: float) -> void:
+    if landmark_player.playing:
+        landmark_player.position = Vector2(VW / 2.0, VH / 2.0) + landmark_pos - player_pos
+    breadcrumb_timer -= delta
+    if breadcrumb_timer > 0.0 or landmark_player.playing:
+        return
+    var nearest: Dictionary = {}
+    var distance := 120.0
+    for object: Dictionary in vis_special:
+        if object.get("kind", "") not in ["shrine", "pond"] or found_ids.has(object.get("id", "")):
+            continue
+        var pos := Vector2(float(object["x"]), float(object["y"]))
+        var d := player_pos.distance_to(pos)
+        if d < distance:
+            nearest = object
+            distance = d
+    if nearest.is_empty():
+        return
+    # Center the virtual listener on the wanderer while preserving left/right cues.
+    landmark_pos = Vector2(float(nearest["x"]), float(nearest["y"]))
+    landmark_player.position = Vector2(VW / 2.0, VH / 2.0) + landmark_pos - player_pos
+    landmark_player.stream = snd[str(nearest["kind"]) + "_cue"]
+    landmark_player.volume_db = -24.0
+    landmark_player.play()
+    breadcrumb_timer = 3.0
+
+
 # ----------------------------------------------------------------- helpers
+
 
 static func _h(a: int, b: int) -> float:
     var h := (a * 374761393 + b * 668265263) & 0x7fffffff
@@ -561,6 +646,13 @@ func _update_biome() -> void:
     fog_amt = f
     var id := _biome_of_region(_region(player_pos.x))
     if id != cur_biome:
+        audio_from = audio_weights.duplicate()
+        audio_fade = 0.0
+        if cur_biome == -1:
+            audio_weights.fill(0.0)
+            audio_weights[id] = 1.0
+            audio_from = audio_weights.duplicate()
+            audio_fade = 3.0
         cur_biome = id
         title_text = BIOMES[id]["name"]
         title_t = 0.0
@@ -593,14 +685,10 @@ func _find_special(kind: String) -> Vector2:
 func _process(delta: float) -> void:
     ui_t += delta
     frames += 1
-    var j_down := Input.is_key_pressed(KEY_J)
-    if j_down and not key_j_down and not paused:
+    if Input.is_action_just_pressed("journal") and not paused:
         journal_open = not journal_open
-    key_j_down = j_down
-    var p_down := Input.is_key_pressed(KEY_P)
-    if p_down and not key_p_down and not journal_open:
+    if Input.is_action_just_pressed("pause") and not journal_open:
         paused = not paused
-    key_p_down = p_down
     if Input.is_action_just_pressed("ui_cancel"):
         if journal_open:
             journal_open = false
@@ -608,17 +696,21 @@ func _process(delta: float) -> void:
             get_tree().change_scene_to_file("res://menu/menu.tscn")
             return
     _update_ui(delta)
-    var frozen := paused or journal_open
+    var frozen := paused or journal_open or journal_amount > 0.0
     if not frozen:
         t += delta
         time_of_day = fposmod(time_of_day + delta / DAY_LENGTH, 1.0)
-        var t_down := Input.is_key_pressed(KEY_T)
-        if t_down and not key_t_down:
+        if Input.is_action_just_pressed("advance_time"):
             time_of_day = fposmod(time_of_day + 0.1, 1.0)
-        key_t_down = t_down
         _update_biome()
         _update_palette()
-        _move(delta)
+        if discovery_left > 0.0:
+            discovery_left = maxf(0.0, discovery_left - delta)
+            vel = Vector2.ZERO
+            moving = false
+        else:
+            _move(delta)
+        _update_lantern(delta)
         cam_x = lerpf(cam_x, player_pos.x + facing * 18.0, 1.0 - exp(-delta * 2.5))
         _gather()
         _update_fuel(delta)
@@ -633,13 +725,13 @@ func _process(delta: float) -> void:
     front.queue_redraw()
     ui.queue_redraw()
     if shot_path != "" and frames == shot_frame:
-        get_viewport().get_texture().get_image().save_png(shot_path)
+        get_window().get_texture().get_image().save_png(shot_path)
         get_tree().quit()
 
 
 func _move(delta: float) -> void:
     var dir := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-    running = Input.is_key_pressed(KEY_SHIFT)
+    running = Input.is_action_pressed("run")
     var speed := 74.0 if running else 38.0
     var target := Vector2(dir.x * speed, dir.y * speed * 0.55)
     vel = vel.lerp(target, 1.0 - exp(-delta * 10.0))
@@ -657,10 +749,39 @@ func _move(delta: float) -> void:
                 _kick_foot()
                 if not snd.is_empty():
                     var steps: Array = snd["steps"]
-                    _play(steps[randi() % steps.size()], -20.0, randf_range(0.85, 1.15))
+                    var terrain := _terrain()
+                    _play(steps[terrain], [-23.0, -21.0, -19.0][terrain] + randf_range(-1.0, 1.0),
+                        [0.9, 1.15, 0.8][terrain] * randf_range(0.95, 1.05))
     else:
         anim_t = 0.0
         last_phase = -1
+
+
+func _terrain() -> int:
+    for object: Dictionary in vis_flat:
+        if object.get("kind", "") in ["pond", "puddle"]:
+            var pos := Vector2(float(object["x"]), float(object["y"]))
+            if (
+                absf(pos.x - player_pos.x) < float(object.get("rx", 15.0))
+                and absf(pos.y - player_pos.y) < float(object.get("ry", 6.0)) + 3.0
+            ):
+                return 2
+    if cur_biome == 2:
+        return 2
+    return 0 if absf(player_pos.y - _path_y(player_pos.x)) < 8.0 else 1
+
+
+func _update_lantern(delta: float) -> void:
+    var target := Vector2(-vel.x * 0.045, -4.0 if discovery_left > 0.0 else 0.0)
+    if moving:
+        target += Vector2(sin(anim_t * PI) * 1.3, cos(anim_t * PI) * 0.5)
+    # Small substeps keep the spring stable after a slow frame.
+    var remaining := minf(delta, 0.1)
+    while remaining > 0.0:
+        var dt := minf(remaining, 1.0 / 120.0)
+        lantern_velocity += ((target - lantern_offset) * 90.0 - lantern_velocity * 15.0) * dt
+        lantern_offset += lantern_velocity * dt
+        remaining -= dt
 
 
 func _update_fuel(delta: float) -> void:
@@ -799,6 +920,10 @@ func _discover(o: Dictionary) -> void:
     if found_ids.has(id):
         return
     found_ids[id] = true
+    discovery_left = 0.5
+    facing = 1 if float(o["x"]) >= player_pos.x else -1
+    vel = Vector2.ZERO
+    moving = false
     var kind: String = o["kind"]
     var n := int(found_counts.get(kind, 0)) + 1
     found_counts[kind] = n
@@ -890,6 +1015,9 @@ func _update_particles(dt: float) -> void:
 
 
 func _update_ui(delta: float) -> void:
+    var visible := not moving or paused or journal_open or fuel < 0.15
+    hud_alpha = move_toward(hud_alpha, 1.0 if visible else 0.0, delta * 3.0)
+    journal_amount = move_toward(journal_amount, 1.0 if journal_open else 0.0, delta * 4.0)
     title_t += delta
     if not toasts.is_empty():
         var tw: Dictionary = toasts[0]
@@ -1318,8 +1446,7 @@ func _lantern_pos() -> Vector2:
     if moving:
         bob = -float(int(anim_t) % 2)
     var hx := 2.0 if facing > 0 else -3.0
-    var swing := sin(t * 3.0) + vel.x * 0.03
-    return pos + Vector2(hx + facing * 1.0 + swing, -10.0 + bob)
+    return pos + Vector2(hx + facing * 1.0, -10.0 + bob) + lantern_offset
 
 
 func _draw_player() -> void:
@@ -1332,10 +1459,15 @@ func _draw_player() -> void:
     var tex: Texture2D = frames_arr[f]
     draw_texture(tex, pos + Vector2(-8, -24), amb.lerp(Color.WHITE, 0.4))
     var lp := _lantern_pos()
-    draw_rect(Rect2(floorf(lp.x) - 1, floorf(lp.y), 3, 4), Color("2a1d16"))
+    draw_line(pos + Vector2(facing * 2, -13), lp, Color("bba079"), 1.0)
+    draw_rect(Rect2(floorf(lp.x) - 2, floorf(lp.y) - 2, 5, 7), Color("2a1d16"))
     var flame := Color("ffe08a").lerp(Color("c86a28"), 1.0 - clampf(fuel * 3.0, 0.0, 1.0))
-    draw_rect(Rect2(floorf(lp.x), floorf(lp.y) + 1, 1, 2), flame)
-    draw_rect(Rect2(floorf(lp.x), floorf(lp.y) - 1, 1, 1), Color("2a1d16"))
+    var height := ceili(fuel * 4.0)
+    flame *= Color(lerpf(0.2, 1.0, fuel) * flick, lerpf(0.2, 1.0, fuel) * flick,
+        lerpf(0.2, 1.0, fuel) * flick)
+    if height > 0:
+        draw_rect(Rect2(floorf(lp.x) - 1, floorf(lp.y) + 4 - height, 3, height), flame)
+    draw_rect(Rect2(floorf(lp.x), floorf(lp.y) - 3, 1, 1), Color("2a1d16"))
 
 
 # ---------------------------------------------------------------- overlays
@@ -1476,7 +1608,9 @@ func _draw_front() -> void:
         var bt: Texture2D = frames_b[1 + int(float(b["t"]) * 14.0 + float(b["ph"])) % 2]
         var bp := Vector2(floorf(float(b["x"]) - cam_x + VW / 2.0), floorf(float(b["y"])))
         var fl := -1.0 if float(b["vx"]) < 0.0 else 1.0
-        f.draw_set_transform_matrix(Transform2D(Vector2(-fl, 0), Vector2(0, 1), bp))
+        var transform := Transform2D(Vector2(fl, 0), Vector2(0, 1), bp)
+        assert(transform.x.x * float(b["vx"]) >= 0.0, "Birds must face their flight direction.")
+        f.draw_set_transform_matrix(transform)
         f.draw_texture(bt, Vector2(-bt.get_width() / 2.0, -bt.get_height()),
             amb.lerp(Color.WHITE, 0.3))
         f.draw_set_transform_matrix(Transform2D.IDENTITY)
@@ -1527,8 +1661,9 @@ func _draw_front() -> void:
 
 func _txt(n: CanvasItem, p: Vector2, s: String, col: Color, size: int=8) -> void:
     var font := ThemeDB.fallback_font
-    n.draw_string(font, p + Vector2(1, 1), s, HORIZONTAL_ALIGNMENT_LEFT, -1, size,
-        Color(0, 0, 0, col.a * 0.7))
+    if journal_amount == 0.0:
+        n.draw_string(font, p + Vector2.ONE / maxf(ui.scale.x, 1.0), s,
+            HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0, 0, 0, col.a * 0.5))
     n.draw_string(font, p, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
 
 
@@ -1562,35 +1697,25 @@ func _wrap(s: String, width: float, size: int) -> Array[String]:
 
 func _draw_ui() -> void:
     var u := ui
-    # lantern fuel gauge (top right)
-    var gx := VW - 40.0
-    var low := fuel < 0.15
-    var gc := Color("ffd27a") if not low else Color("ff7a3a")
-    var ga := 1.0 if not low else clampf(0.6 + 0.4 * sin(ui_t * 9.0), 0.4, 1.0)
-    u.draw_rect(Rect2(gx - 9, 6, 5, 7), Color(0, 0, 0, 0.55))
-    u.draw_rect(Rect2(gx - 8, 7, 3, 5), Color("2a1d16"))
-    u.draw_rect(Rect2(gx - 7, 8, 1, 3), Color(gc.r, gc.g, gc.b, ga))
-    u.draw_rect(Rect2(gx - 7, 5, 1, 1), Color("2a1d16"))
-    u.draw_rect(Rect2(gx - 1, 7, 34, 6), Color(0, 0, 0, 0.55))
-    u.draw_rect(Rect2(gx, 8, 32, 4), Color(0.12, 0.09, 0.07, 0.9))
-    u.draw_rect(Rect2(gx, 8, floorf(32.0 * fuel), 4), Color(gc.r, gc.g, gc.b, ga))
-    u.draw_rect(Rect2(gx, 8, floorf(32.0 * fuel), 1), Color(1, 1, 1, 0.25 * ga))
     # discovery counter (top left)
-    u.draw_rect(Rect2(8, 8, 1, 5), Color(1.0, 0.92, 0.6, 0.85))
-    u.draw_rect(Rect2(6, 10, 5, 1), Color(1.0, 0.92, 0.6, 0.85))
-    _txt(u, Vector2(14, 14), "%d found" % _total_found(), Color(1, 0.95, 0.8, 0.8))
+    u.draw_rect(Rect2(8, 8, 1, 5), Color(1.0, 0.92, 0.6, 0.85 * hud_alpha))
+    u.draw_rect(Rect2(6, 10, 5, 1), Color(1.0, 0.92, 0.6, 0.85 * hud_alpha))
+    _txt(u, Vector2(14, 14), "%d found" % _total_found(), Color(1, 0.95, 0.8, 0.8 * hud_alpha))
     _draw_toast(u)
     _draw_title(u)
-    if journal_open:
+    if journal_amount > 0.0:
         _draw_journal(u)
     elif paused:
         u.draw_rect(Rect2(0, 0, VW, VH), Color(0.02, 0.03, 0.08, 0.55))
         _txt_c(u, VW / 2.0, VH / 2.0 - 2.0, "PAUSED", Color(1, 0.95, 0.8), 16)
-        _txt_c(u, VW / 2.0, VH / 2.0 + 14.0, "P resume   Esc menu", Color(0.8, 0.88, 1.0))
-    # hint text fades out
-    var alpha := clampf(1.0 - (ui_t - 7.0) / 3.0, 0.0, 1.0)
+        _txt_c(u, VW / 2.0, VH / 2.0 + 14.0,
+            "Start resume   B menu" if not Input.get_connected_joypads().is_empty()
+            else "P resume   Esc menu", Color(0.8, 0.88, 1.0))
+    var alpha := hud_alpha
     if alpha > 0.0 and not journal_open:
         var msg := "Arrows walk   Shift run   J journal   P pause   T time   Esc menu"
+        if not Input.get_connected_joypads().is_empty():
+            msg = "Stick/D-pad walk   RB run   X journal   Start pause   Y time   B menu"
         _txt_c(u, VW / 2.0, VH - 6.0, msg, Color(1, 1, 0.9, alpha))
 
 
@@ -1627,7 +1752,7 @@ func _draw_title(u: Node2D) -> void:
 
 
 func _draw_icon(u: Node2D, kind: String, box: Rect2, known: bool) -> void:
-    var col := Color.WHITE if known else Color(0.01, 0.02, 0.04, 0.95)
+    var col := Color("a96932") if known else Color(0.1, 0.08, 0.06, 0.95)
     var c := box.get_center()
     var tex: Texture2D = null
     match kind:
@@ -1640,34 +1765,42 @@ func _draw_icon(u: Node2D, kind: String, box: Rect2, known: bool) -> void:
         "shrine":
             tex = stones[0]
         "pond":
-            _ellipse(u, c + Vector2(0, 2), 10.0, 4.0, Color("5aa0c8") if known else col)
-            _ellipse(u, c + Vector2(0, 1), 6.0, 2.0, Color("a8d8f0") if known else col)
+            _ellipse(u, c + Vector2(0, 2), 10.0, 4.0, Color("a96932") if known else col)
+            _ellipse(u, c + Vector2(0, 1), 6.0, 2.0, Color("c28c50") if known else col)
         "glade":
-            var lc := Color(1, 0.95, 0.6, 0.55) if known else col
+            var lc := Color(0.7, 0.4, 0.2, 0.55) if known else col
             u.draw_colored_polygon(PackedVector2Array(
                 [c + Vector2(-3, -10), c + Vector2(2, -10), c + Vector2(9, 6),
                     c + Vector2(-10, 6)]), lc)
-            _ellipse(u, c + Vector2(0, 7), 10.0, 3.0, Color(0.5, 0.8, 0.4) if known else col)
+            _ellipse(u, c + Vector2(0, 7), 10.0, 3.0, Color("a96932") if known else col)
     if tex != null:
+        if known:
+            tex = journal_icons[kind]
+            col = Color.WHITE
         var sz := tex.get_size()
-        var s := maxf(floorf(minf(22.0 / sz.x, 22.0 / sz.y)), 1.0)
-        if sz.y * s > 24.0:
-            s = 1.0
+        var s := minf(22.0 / sz.x, 22.0 / sz.y)
+        if s >= 1.0:
+            s = floorf(s)
         var tsz := sz * s
         u.draw_texture_rect(tex, Rect2((c - tsz / 2.0).floor(), tsz), false, col)
 
 
 func _draw_journal(u: Node2D) -> void:
-    u.draw_rect(Rect2(0, 0, VW, VH), Color(0.01, 0.02, 0.05, 0.6))
+    u.draw_rect(Rect2(0, 0, VW, VH), Color(0.01, 0.02, 0.05, 0.6 * journal_amount))
+    var opening := smoothstep(0.0, 1.0, journal_amount)
+    var scale_x := lerpf(0.12, 1.0, opening)
+    u.draw_set_transform(Vector2(VW * (1.0 - scale_x) / 2.0, (1.0 - opening) * 6.0),
+        0.0, Vector2(scale_x, 1.0))
     var r := Rect2(10, 7, VW - 20, VH - 14)
-    _panel(u, r, Color(0.07, 0.09, 0.15, 0.95), Color(0.85, 0.72, 0.45, 0.85))
-    _txt_c(u, VW / 2.0, 21.0, "FOREST JOURNAL", Color(1.0, 0.9, 0.58), 12)
+    _panel(u, r, Color("ecd6aa"), Color(0.85, 0.72, 0.45, 0.85))
+    _txt_c(u, VW / 2.0, 21.0, "FOREST JOURNAL", Color("704323"), 12)
+    u.draw_line(Vector2(VW / 2.0, 41), Vector2(VW / 2.0, VH - 25), Color(0.4, 0.25, 0.1, 0.2))
     var tf := _types_found()
     var total := _total_found()
     _txt_c(u, VW / 2.0, 33.0, "Discoveries: %d      Kinds: %d / %d" % [total, tf, TYPES.size()],
-        Color(0.8, 0.88, 0.95))
+        Color("795d40"))
     u.draw_rect(Rect2(110, 36, 100, 3), Color(0, 0, 0, 0.6))
-    u.draw_rect(Rect2(110, 36, floorf(100.0 * tf / TYPES.size()), 3), Color(1.0, 0.85, 0.45))
+    u.draw_rect(Rect2(110, 36, floorf(100.0 * tf / TYPES.size()), 3), Color("a96932"))
     for i in TYPES.size():
         var ty: Dictionary = TYPES[i]
         var n := int(found_counts.get(ty["id"], 0))
@@ -1675,20 +1808,23 @@ func _draw_journal(u: Node2D) -> void:
         var x := 20.0 + (i % 2) * 150.0
         var y := 46.0 + (i / 2) * 38.0
         var box := Rect2(x, y, 26, 26)
-        u.draw_rect(box, Color(0.1, 0.13, 0.2, 1.0) if known else Color(0.08, 0.1, 0.15, 1.0))
+        u.draw_rect(box, Color("e2c595") if known else Color("bba584"))
         u.draw_rect(box, Color(0.85, 0.72, 0.45, 0.6 if known else 0.25), false)
         _draw_icon(u, str(ty["id"]), box, known)
         var tx := x + 31.0
         if known:
-            _txt(u, Vector2(tx, y + 7.0), str(ty["name"]), Color(1.0, 0.92, 0.62))
-            _txt(u, Vector2(tx, y + 16.0), "Found: %d" % n, Color(0.6, 0.9, 0.8))
+            _txt(u, Vector2(tx, y + 7.0), str(ty["name"]), Color("704323"))
+            _txt(u, Vector2(tx, y + 16.0), "Found: %d" % n, Color("805633"))
             var lines := _wrap(str(ty["text"]), 106.0, 8)
             for li in mini(lines.size(), 2):
-                _txt(u, Vector2(tx, y + 25.0 + li * 9.0), lines[li], Color(0.78, 0.84, 0.92))
+                _txt(u, Vector2(tx, y + 25.0 + li * 9.0), lines[li], Color("795d40"))
         else:
-            _txt(u, Vector2(tx, y + 7.0), "???", Color(0.55, 0.6, 0.7))
-            _txt(u, Vector2(tx, y + 16.0), "Not yet found", Color(0.4, 0.45, 0.55))
+            _txt(u, Vector2(tx, y + 7.0), "???", Color("6c5944"))
+            _txt(u, Vector2(tx, y + 16.0), "Not yet found", Color("76634e"))
             var hl := _wrap("Hint: " + str(ty["hint"]), 106.0, 8)
             for li in mini(hl.size(), 2):
-                _txt(u, Vector2(tx, y + 25.0 + li * 9.0), hl[li], Color(0.5, 0.56, 0.68))
-    _txt_c(u, VW / 2.0, VH - 12.0, "J close     Esc close", Color(0.6, 0.66, 0.78))
+                _txt(u, Vector2(tx, y + 25.0 + li * 9.0), hl[li], Color("76634e"))
+    _txt_c(u, VW / 2.0, VH - 12.0,
+        "X close     B close" if not Input.get_connected_joypads().is_empty()
+        else "J close     Esc close", Color("795d40"))
+    u.draw_set_transform(Vector2.ZERO)

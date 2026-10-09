@@ -28,6 +28,8 @@ const UFO_Y := 40.0
 const BOSS_Y := 62.0
 const BOSS_W := 110.0
 const BOSS_H := 40.0
+const BOSS_WARNING := 0.3
+const CLOSE_RANGE := 100.0
 
 # Power-up kinds
 const P_RAPID := 0
@@ -77,6 +79,11 @@ var player_x := W / 2.0
 var invuln := 0.0
 var pbullets: Array[PBullet] = []
 var fire_cd := 0.0
+var recoil_left := 0.0
+var muzzle_frames := 0
+var hit_stop_frames := 0
+var celebration_left := 0.0
+var feedback_age := 0.0
 
 var rapid_t := 0.0
 var spread_t := 0.0
@@ -109,6 +116,7 @@ var boss_max := 1
 var boss_cd := 1.0
 var boss_pattern := 0
 var boss_flash := 0.0
+var boss_warned := false
 
 var lost_life := false
 var intro_msg := ""
@@ -154,6 +162,9 @@ func _ready() -> void:
         "boss_death": Sfx.build([[300, 40, 0.9, "noise", 0.8], [200, 30, 0.7, "square", 0.4],
             [100, 20, 0.5, "noise", 0.5]]),
         "shield": Sfx.build([[1200, 300, 0.2, "sine", 0.4], [500, 500, 0.08, "noise", 0.3]]),
+        "warning": Sfx.build([[330, 880, BOSS_WARNING, "sine", 0.2]]),
+        "flawless": Sfx.build([[659, 659, 0.08, "sine", 0.3],
+            [784, 784, 0.08, "sine", 0.3], [1047, 1047, 0.18, "sine", 0.3]]),
     }
     ufo_player = AudioStreamPlayer.new()
     add_child(ufo_player)
@@ -165,6 +176,14 @@ func play(sound: String) -> void:
     next_player = (next_player + 1) % players.size()
     p.stream = sounds[sound]
     p.play()
+
+
+func _exit_tree() -> void:
+    for player in players:
+        player.stop()
+        player.stream = null
+    ufo_player.stop()
+    ufo_player.stream = null
 
 
 func start_game() -> void:
@@ -179,6 +198,7 @@ func start_game() -> void:
     drops.clear()
     effects.clear()
     texts.clear()
+    celebration_left = 0.0
     play("start")
     start_level()
 
@@ -186,6 +206,10 @@ func start_game() -> void:
 func start_level() -> void:
     aliens.clear()
     boss_active = false
+    boss_warned = false
+    hit_stop_frames = 0
+    recoil_left = 0.0
+    muzzle_frames = 0
     if level % 5 == 0:
         # Boss level instead of the normal wave
         boss_active = true
@@ -317,7 +341,7 @@ func _unhandled_input(event: InputEvent) -> void:
         else:
             _to_title()
         return
-    if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_P:
+    if event.is_action_pressed("pause"):
         if state == State.PLAYING or state == State.INTRO:
             paused = not paused
             ufo_player.stream_paused = paused
@@ -328,6 +352,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
     if not paused:
+        if hit_stop_frames > 0:
+            hit_stop_frames -= 1
+            queue_redraw()
+            return
+        feedback_age += delta
+        recoil_left = maxf(0.0, recoil_left - delta)
+        celebration_left = maxf(0.0, celebration_left - delta)
+        muzzle_frames = maxi(0, muzzle_frames - 1)
         match state:
             State.INTRO:
                 intro_timer -= delta
@@ -336,7 +368,8 @@ func _process(delta: float) -> void:
                 _update_effects(delta)
             State.PLAYING:
                 _update_playing(delta)
-                _update_effects(delta)
+                if hit_stop_frames == 0:
+                    _update_effects(delta)
     queue_redraw()
 
 
@@ -371,6 +404,8 @@ func _update_playing(delta: float) -> void:
     fire_cd -= delta
     _player_fire()
     _update_pbullets(delta)
+    if hit_stop_frames > 0:
+        return
     _update_drops(delta)
     _update_ufo(delta)
     if boss_active:
@@ -452,6 +487,8 @@ func _player_fire() -> void:
         "ui_accept"):
         return
     fire_cd = 0.14 if rapid_t > 0.0 else 0.0
+    recoil_left = 0.08
+    muzzle_frames = 1
     var speeds: Array[float] = [0.0]
     if spread:
         speeds = [-90.0, 0.0, 90.0]
@@ -470,6 +507,8 @@ func _update_pbullets(delta: float) -> void:
         pb.pos.x += pb.vx * delta
         if pb.pos.y < -10 or pb.pos.x < -10 or pb.pos.x > W + 10 or _pbullet_hits(pb):
             pbullets.remove_at(i)
+        if hit_stop_frames > 0:
+            return
 
 
 ## Returns true when the bullet is used up.
@@ -486,6 +525,8 @@ func _pbullet_hits(pb: PBullet) -> bool:
     for i in range(aliens.size() - 1, -1, -1):
         var a := aliens[i]
         if brect.intersects(Rect2(a.pos, Vector2(ALIEN_W, ALIEN_H))):
+            if a.tough:
+                hit_stop_frames = 2
             a.hp -= 1
             if a.hp > 0:
                 play("boss_hit")
@@ -507,6 +548,8 @@ func _kill_alien(i: int) -> void:
     var pts := base * (1 + int(depth * 3.99))
     _add_score(pts)
     var center := a.pos + Vector2(ALIEN_W, ALIEN_H) / 2.0
+    if Vector2(player_x, PLAYER_Y).distance_to(center) <= CLOSE_RANGE:
+        fire_cd = 0.0
     effects.append([center, 0.0, _alien_color(a)])
     _float_text(center, "+%d" % pts, Color.WHITE)
     _maybe_drop(center, 0.1 if not a.diving else 0.3)
@@ -589,6 +632,10 @@ func _update_boss(delta: float) -> void:
         boss_x = W - BOSS_W / 2.0 - 10.0
         boss_dir = -1
     boss_cd -= delta
+    if boss_pattern % 3 != 0 and boss_cd <= BOSS_WARNING and not boss_warned:
+        boss_warned = true
+        play("warning")
+        boss_cd = BOSS_WARNING
     if boss_cd <= 0.0:
         _boss_fire()
         var base := maxf(1.0 - 0.05 * mini(level / 5, 6), 0.45)
@@ -617,10 +664,12 @@ func _boss_fire() -> void:
             for k in range(-1, 2):
                 _boss_bullet(origin, aim.rotated(k * 0.18) * 240.0)
     boss_pattern += 1
+    boss_warned = false
 
 
 func _boss_hit() -> void:
     boss_hp -= 1
+    hit_stop_frames = 2
     boss_flash = 0.08
     if boss_hp > 0:
         play("boss_hit")
@@ -668,8 +717,11 @@ func _level_cleared() -> void:
         var bonus := 1000 * level
         _add_score(bonus)
         intro_msg = "FLAWLESS!  +%d" % bonus
+        celebration_left = 0.3
+        play("flawless")
+    else:
+        play("level")
     level += 1
-    play("level")
     start_level()
 
 
@@ -738,24 +790,37 @@ func _text(text: String, y: float, size: int=20, color:=Color.WHITE) -> void:
 
 
 func _draw() -> void:
+    var controller := not Input.get_connected_joypads().is_empty()
+    var pause_key := "Start" if controller else "P"
+    var back_key := "B" if controller else "Esc"
+    var accept_key := "A" if controller else "Enter"
     draw_rect(Rect2(0, 0, W, H), Color.BLACK)
     for s in stars:
         draw_rect(Rect2(s, Vector2(1, 1)), Color(1, 1, 1, 0.5))
 
     if state == State.TITLE:
         _text("SPACE INVADERS", 170, 40, Color.LIME_GREEN)
-        _text("Arrows: move    Space: fire    P: pause    Esc: back", 250, 16)
+        _text("Stick/D-pad: move    A: fire    Start: pause    B: back" if controller
+        else "Arrows: move    Space: fire    P: pause    Esc: back", 250, 16)
         _text("Power-ups: R rapid fire   S spread shot   B shield", 280, 14, Color.CYAN)
-        _text("Press Enter or Space to start", 330, 22, Color.YELLOW)
+        _text("Press A to start" if controller else "Press Enter or Space to start",
+            330, 22, Color.YELLOW)
         _text("High score: %d" % hi_score, 390, 16, Color.CYAN)
         return
 
-    # HUD
     var font := ThemeDB.fallback_font
     draw_string(font, Vector2(10, 22), "SCORE %d" % score, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
     _text("LEVEL %d    HI %d" % [level, hi_score], 22, 16)
-    draw_string(font, Vector2(0, 22), "LIVES %d" % lives, HORIZONTAL_ALIGNMENT_RIGHT, W - 10, 16)
-    draw_line(Vector2(0, PLAYER_Y + PLAYER_H + 6), Vector2(W, PLAYER_Y + PLAYER_H + 6), Color.GREEN,
+    for i in lives:
+        _draw_cannon(Vector2(W - 20 - i * 24, 7), Color.GREEN_YELLOW, 0.55)
+    var threat := false
+    for alien in aliens:
+        if not alien.diving and alien.pos.y + ALIEN_H >= H * 2.0 / 3.0:
+            threat = true
+            break
+    var line_color := Color(1.0, 0.1, 0.1, 0.55 + 0.45 * sin(feedback_age * 8.0)) \
+        if threat else Color.GREEN
+    draw_line(Vector2(0, PLAYER_Y + PLAYER_H + 6), Vector2(W, PLAYER_Y + PLAYER_H + 6), line_color,
         2)
     var hx := 10.0
     var timers := [rapid_t, spread_t, shield_t]
@@ -770,11 +835,12 @@ func _draw() -> void:
     # Bunkers
     for b in BUNKER_COUNT:
         var br := _bunker_rect(b)
+        var condition := _bunker_color(b)
         for r in BUNKER_ROWS:
             for c in BUNKER_COLS:
                 if bunker_cells[_cell_index(b, c, r)] == 1:
                     draw_rect(Rect2(br.position + Vector2(c, r) * CELL, Vector2(CELL, CELL)),
-                        Color.LIME_GREEN.darkened(0.2))
+                        condition)
 
     # UFO
     if ufo_active:
@@ -804,9 +870,10 @@ func _draw() -> void:
 
     # Player (blinks while invulnerable)
     if state != State.GAME_OVER and (invuln <= 0.0 or int(invuln * 10) % 2 == 0):
-        var px := player_x - PLAYER_W / 2.0
-        draw_rect(Rect2(px, PLAYER_Y + 8, PLAYER_W, 8), Color.GREEN_YELLOW)
-        draw_rect(Rect2(player_x - 3, PLAYER_Y, 6, 8), Color.GREEN_YELLOW)
+        _draw_cannon(Vector2(player_x, PLAYER_Y + (2.0 if recoil_left > 0.0 else 0.0)),
+            Color.GREEN_YELLOW)
+        if muzzle_frames > 0:
+            draw_rect(Rect2(player_x - 4, PLAYER_Y - 6, 8, 6), Color(1, 1, 0.7))
     if state != State.GAME_OVER and shield_t > 0.0 and (shield_t > 1.5 or int(
         shield_t * 8) % 2 == 0):
         var sc := Vector2(player_x, PLAYER_Y + 8)
@@ -814,7 +881,6 @@ func _draw() -> void:
         draw_circle(sc, 22, Color(0.3, 0.8, 1.0, 0.15))
         draw_arc(sc, 22, 0, TAU, 24, Color(0.4, 0.9, 1.0, glow), 2)
 
-    # Bullets
     for pb in pbullets:
         draw_rect(Rect2(pb.pos, Vector2(3, 10)), Color.WHITE)
     for eb in alien_bullets:
@@ -837,7 +903,9 @@ func _draw() -> void:
         var age: float = t[1]
         var tc: Color = t[3]
         tc.a = 1.0 - age
-        draw_string(font, Vector2(tp.x - 50, tp.y - age * 30.0), t[2], HORIZONTAL_ALIGNMENT_CENTER,
+        var rise := 1.0 - pow(1.0 - age, 3.0)
+        draw_string(font, Vector2(tp.x - 50 + sin(age * PI) * 10.0, tp.y - rise * 36.0), t[2],
+            HORIZONTAL_ALIGNMENT_CENTER,
             100, 12, tc)
 
     if state == State.INTRO:
@@ -851,11 +919,37 @@ func _draw() -> void:
         if new_record:
             _text("NEW HIGH SCORE!", H / 2.0 + 5, 20, Color.YELLOW)
         _text("Score: %d" % score, H / 2.0 + 30, 20)
-        _text("Enter: play again    Esc: title", H / 2.0 + 65, 16)
+        _text("%s: play again    %s: title" % [accept_key, back_key], H / 2.0 + 65, 16)
 
+    if celebration_left > 0.0:
+        draw_rect(Rect2(0, 0, W, H), Color(1, 1, 0.8, celebration_left * 0.5))
     if paused:
         draw_rect(Rect2(0, 0, W, H), Color(0, 0, 0, 0.6))
-        _text("PAUSED - P resume, Esc title", H / 2.0, 24, Color.YELLOW)
+        _text("PAUSED - %s resume, %s title" % [pause_key, back_key],
+            H / 2.0, 24, Color.YELLOW)
+
+
+func _draw_cannon(pos: Vector2, color: Color, cannon_scale: float=1.0) -> void:
+    draw_rect(
+        Rect2(
+            pos + Vector2(-PLAYER_W / 2.0, 8) * cannon_scale, Vector2(PLAYER_W, 8) * cannon_scale
+        ),
+        color
+    )
+    draw_rect(Rect2(pos + Vector2(-3, 0) * cannon_scale, Vector2(6, 8) * cannon_scale), color)
+
+
+func _bunker_color(b: int) -> Color:
+    var remaining := 0
+    for r in BUNKER_ROWS:
+        for c in BUNKER_COLS:
+            remaining += bunker_cells[_cell_index(b, c, r)]
+    var fraction := remaining / float(BUNKER_COLS * BUNKER_ROWS - 11)
+    if fraction < 0.3:
+        return Color.TOMATO
+    if fraction < 0.65:
+        return Color.GOLD
+    return Color.LIME_GREEN.darkened(0.2)
 
 
 func _alien_color(a: Alien) -> Color:
@@ -892,6 +986,11 @@ func _draw_boss() -> void:
     draw_rect(Rect2(p + Vector2(8, 28), Vector2(14, 12)), c)
     draw_rect(Rect2(p + Vector2(48, 28), Vector2(14, 12)), c)
     draw_rect(Rect2(p + Vector2(88, 28), Vector2(14, 12)), c)
+    if boss_warned:
+        var glow := 0.4 + 0.6 * (1.0 - boss_cd / BOSS_WARNING)
+        for x in [15, 55, 95]:
+            draw_circle(p + Vector2(x, 34), 11, Color(1, 0.7, 0.2, glow * 0.3))
+            draw_rect(Rect2(p + Vector2(x - 4, 28), Vector2(8, 12)), Color(1, 0.9, 0.5, glow))
     draw_rect(Rect2(p + Vector2(24, 13), Vector2(14, 8)), Color.YELLOW)
     draw_rect(Rect2(p + Vector2(72, 13), Vector2(14, 8)), Color.YELLOW)
     # Health bar

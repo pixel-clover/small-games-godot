@@ -30,7 +30,8 @@ Priorities, in order:
 - Do not use em dashes. Restructure the sentence or use a colon or semicolon instead.
 - Avoid colorful adjectives and adverbs. Write "adjacency query" not "blazing adjacency query".
 - Prefer noun phrases for checklist items over imperative verbs.
-- Headings in Markdown files must be in the title case: "Build from Source" not "Build from source". Minor words stay lowercase unless they are the first
+- Headings in Markdown files must be in the title case: "Build from Source" not "Build from source". Minor words stay lowercase unless they are the
+  first
   word: the articles (a, an, the), the coordinating conjunctions (and, but, or, nor, so, yet, for), and the short prepositions (in, on, at, to, by,
   of, up, as, from, with, into, over).
 - Do not bold the lead-in of a list item.

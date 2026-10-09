@@ -32,7 +32,9 @@ static func _normalize(a: PackedFloat32Array, peak: float) -> void:
         a[i] = a[i] / m * peak
 
 
-static func wind() -> AudioStreamWAV:
+static func wind(biome: int=0) -> AudioStreamWAV:
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 700 + biome
     var n := RATE * 4
     var x := RATE / 2  # crossfade length for a seamless loop
     var raw := PackedFloat32Array()
@@ -40,7 +42,7 @@ static func wind() -> AudioStreamWAV:
     var lp1 := 0.0
     var lp2 := 0.0
     for i in n + x:
-        lp1 += ((randf() * 2.0 - 1.0) - lp1) * 0.07
+        lp1 += ((rng.randf() * 2.0 - 1.0) - lp1) * (0.04 + biome * 0.015)
         lp2 += (lp1 - lp2) * 0.07
         raw[i] = lp2
     var out := PackedFloat32Array()
@@ -123,17 +125,24 @@ static func owl() -> AudioStreamWAV:
 
 
 static func footsteps() -> Array:
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 810
     var out: Array = []
-    for variant in 2:
-        var n := int(0.1 * RATE)
+    for terrain in 3:
+        var n := int(0.14 * RATE)
         var a := PackedFloat32Array()
         a.resize(n)
         var lp := 0.0
         for i in n:
             var t := float(i) / n
-            lp += ((randf() * 2.0 - 1.0) - lp) * (0.3 + variant * 0.1)
-            a[i] = (lp * 0.9 + sin(TAU * (80.0 + variant * 15.0) * i / RATE) * 0.5) * pow(1.0 - t,
-                2.5)
+            var noise := rng.randf() * 2.0 - 1.0
+            lp += (noise - lp) * [0.08, 0.65, 0.2][terrain]
+            var sample := lp + sin(TAU * 75.0 * i / RATE) * 0.6
+            if terrain == 1:
+                sample = noise - lp
+            elif terrain == 2:
+                sample = lp + sin(TAU * (220.0 - 140.0 * t) * i / RATE) * sin(t * PI) * 0.5
+            a[i] = sample * pow(1.0 - t, 2.5)
         _normalize(a, 0.5)
         out.append(_to_stream(a, RATE, false))
     return out
@@ -160,7 +169,7 @@ static func plucks() -> Array:
 
 
 ## Slow four-chord pad (Cmaj7 - Am7 - Fmaj7 - G6) with overlapping windows, looped seamlessly.
-static func pad() -> AudioStreamWAV:
+static func pad(biome: int=0) -> AudioStreamWAV:
     var rate := 6000
     var chord_len := 4 * rate
     var total := chord_len * 4
@@ -175,7 +184,7 @@ static func pad() -> AudioStreamWAV:
     for c in 4:
         var window := chord_len * 2
         for note in chords[c]:
-            var step := TAU * float(note) / rate
+            var step := TAU * float(note) * pow(2.0, [0, -5, -3, 2, 5][biome] / 12.0) / rate
             for k in window:
                 var u := float(k) / window
                 var env := sin(PI * u)
@@ -186,7 +195,7 @@ static func pad() -> AudioStreamWAV:
     return _to_stream(out, rate, true)
 
 
-## Soft two-note bell used when something is discovered.
+## Soft three-note bell used when something is discovered.
 static func chime() -> AudioStreamWAV:
     var n := int(1.8 * RATE)
     var a := PackedFloat32Array()

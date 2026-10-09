@@ -3,9 +3,13 @@ name: Run Tests
 on:
     workflow_dispatch:
     push:
-        branches: [ main ]
+        branches: [ main, develop ]
     pull_request:
         branches: [ main ]
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
     test:
@@ -27,7 +31,9 @@ jobs:
 
             -   name: Import Assets & Refresh Cache
                 run: |
-                    godot --headless --path . --import
+                    log=$(mktemp)
+                    godot --headless --path . --import 2>&1 | tee "$log"
+                    ! grep -E '^(SCRIPT ERROR:|ERROR:)' "$log"
 
             -   name: Validate Scenes (Smoke Tests)
                 run: |
@@ -39,6 +45,16 @@ jobs:
                     )
                     for scene in "${scenes[@]}"; do
                       echo ">>> Validating res://${scene}.tscn..."
-                      godot --headless --path . "res://${scene}.tscn" --quit-after 60
+                      log=$(mktemp)
+                      godot --headless --path . "res://${scene}.tscn" --quit-after 60 2>&1 | tee "$log"
+                      if grep -E '^(SCRIPT ERROR:|ERROR:|WARNING: .*leaked)' "$log"; then
+                        exit 1
+                      fi
                     done
                     echo ">>> All scenes validated successfully with zero errors!"
+
+            -   name: Gameplay Regression Tests
+                run: |
+                    log=$(mktemp)
+                    XDG_DATA_HOME="$(mktemp -d)" godot --headless --path . --script res://tests/gameplay_test.gd 2>&1 | tee "$log"
+                    ! grep -E '^(SCRIPT ERROR:|ERROR:|WARNING: .*leaked)' "$log"
