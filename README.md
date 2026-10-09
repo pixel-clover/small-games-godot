@@ -10,6 +10,15 @@ A collection of retro arcade games and ambient art experiments built in Godot ga
 
 ### Quickstart
 
+#### A. Clone the project
+
+```bash
+git clone --depth=1 https://github.com/pixel-clover/small-games-godot.git
+cd small-games-godot
+```
+
+#### B. Run the project in Godot
+
 Run the project with Godot 4.3 or newer from your terminal:
 
 ```bash
@@ -22,9 +31,10 @@ If you use Nix, run:
 nix develop --command godot --path .
 ```
 
-You can also open the project folder in the Godot editor and press `F5`.
-Use the arrow keys to select a game from the launcher menu, and press `Enter` to start.
-Press `Esc` during any game to return to the launcher menu.
+> [!NOTE]
+> You can also open the project folder in the Godot editor and press `F5`.
+> Use the arrow keys to select a game from the launcher menu, and press `Enter` to start.
+> Press `Esc` during any game to return to the launcher menu.
 
 ---
 
