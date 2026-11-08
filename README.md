@@ -13,7 +13,7 @@ A collection of retro arcade games and ambient art experiments built in Godot ga
 #### A. Clone the project
 
 ```bash
-git clone --depth=1 https://github.com/pixel-clover/small-games-godot.git
+git clone --depth=1 --recursive https://github.com/pixel-clover/small-games-godot.git
 cd small-games-godot
 ```
 
@@ -83,6 +83,12 @@ Everything, including the station, enemy sprites, weapons, and sound effects are
 <div align="center">
   <img alt="UI" src="docs/assets/screenshots/forest_walk_v1_1.png" width="99%">
 </div>
+
+---
+
+### Generated Effects
+
+See [Generated Effects](docs/effects.md) for asset sources, size limits, and regeneration instructions.
 
 ---
 
