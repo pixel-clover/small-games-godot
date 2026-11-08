@@ -1,7 +1,19 @@
 # Generated Effects
 
-Space Invaders uses one 48-by-48-pixel grayscale burst animation, tinted at runtime.
-Its PNG is 2,544 bytes. The effect source is in [`tools/fx/invader-burst.mjs`](../tools/fx/invader-burst.mjs).
+All four games share one 48-by-48-pixel grayscale burst animation, tinted at runtime.
+Its PNG is 2,544 bytes, with no duplicate atlases per game.
+The effect source is in [`tools/fx/invader-burst.mjs`](../tools/fx/invader-burst.mjs).
+[`common/effects.gd`](../common/effects.gd) handles frame selection and drawing.
+
+| Game           | Use                                                     | Appearance                                         |
+|----------------|---------------------------------------------------------|----------------------------------------------------|
+| Snake          | Food, bonus, and power-up collection, plus near misses. | Yellow sparkles at the collected cell.             |
+| Space Invaders | Alien, UFO, boss, and player explosions.                | Bursts tinted to match the destroyed object.       |
+| Forest Walk    | New discoveries.                                        | A smaller gold flash anchored to the world object. |
+| Neon Breach    | Successful weapon fire.                                 | A short amber flash at the weapon muzzle.          |
+
+Each game uses its existing simulation timers, so pausing also freezes the animation.
+Forest discoveries play over 0.5 seconds, and muzzle flashes play over 0.12 seconds.
 
 ## Regeneration
 
@@ -22,7 +34,7 @@ node tools/generate_invaders_fx.mjs /path/to/pixelfx
 ```
 
 The generator checks the frame layout, transparent ending, deterministic output, and a 16 KiB size limit.
-It writes the game atlas under `games/space_invaders/assets/` and a preview under ignored `tmp/fx-preview/`.
+It writes the shared atlas under `common/effects/` and a preview under ignored `tmp/fx-preview/`.
 Inspect the preview after changing an effect. Keep nearest-neighbor filtering in Godot.
 
 ## Repository Size

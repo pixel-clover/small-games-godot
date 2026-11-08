@@ -4,6 +4,7 @@ const SnakeGame := preload("res://games/snake/snake.gd")
 const InvadersGame := preload("res://games/space_invaders/invaders.gd")
 const ForestWorld := preload("res://games/forest/forest_world.gd")
 const BreachGame := preload("res://games/neon_breach/breach.gd")
+const Effects := preload("res://common/effects.gd")
 
 var failures := 0
 var checks := 0
@@ -139,6 +140,9 @@ func _run() -> void:
         not snake.near_rewarded and snake.swallow_age == 0.0,
         "Eating must reset near-miss eligibility and start the body ripple."
     )
+    _check(snake.sparkle_left == Effects.BURST_DURATION and
+        snake.sparkle_pos == Vector2(snake.snake[0] * SnakeGame.CELL) + Vector2.ONE * 10.0,
+        "Eating must trigger a burst at the collected food.")
     var eat_player := snake.players[(snake.next_player + 3) % 4]
     _check(
         is_equal_approx(eat_player.pitch_scale, pow(2.0, 4.0 / 12.0)),
@@ -148,6 +152,7 @@ func _run() -> void:
     head = snake.snake[0]
     snake._process(1.0)
     _check(snake.snake[0] == head, "Pause must halt Snake simulation.")
+    _check(snake.sparkle_left == Effects.BURST_DURATION, "Pause must freeze Snake sparkles.")
     snake.paused = false
     snake.score = 0
     snake.end_game()
@@ -161,6 +166,7 @@ func _run() -> void:
     for i in 60:
         snake._process(0.07)
     _check(snake.final_score == 50, "The final score must count up without overshooting.")
+    _check(snake.sparkle_left == 0.0, "Sparkles must expire even when Snake ends a run.")
     snake.reset_game()
     _check(
         snake.turns.is_empty() and snake.final_score == 0 and snake.death_freeze == 0,
@@ -227,7 +233,7 @@ func _run() -> void:
     invaders._kill_alien(0)
     _check(invaders.fire_cd == 0.0, "Close kills must reset rapid-fire cooldown.")
     _check(invaders.effects.size() == 1, "An alien kill must create a burst.")
-    var burst_image := InvadersGame.BURST_TEXTURE.get_image()
+    var burst_image := Effects.BURST_TEXTURE.get_image()
     _check(burst_image.get_size() == Vector2i(192, 144),
         "The burst atlas must contain four columns of 48-pixel frames.")
     _check(burst_image.get_region(Rect2i(0, 0, 48, 48)).get_used_rect().has_area() and
@@ -238,7 +244,7 @@ func _run() -> void:
     _check(invaders.effects[0][1] == 0.0, "Pause must freeze the burst animation.")
     invaders.paused = false
     invaders.effects.append([Vector2.ZERO, -0.1, Color.WHITE])
-    invaders._update_effects(InvadersGame.BURST_DURATION)
+    invaders._update_effects(Effects.BURST_DURATION)
     _check(invaders.effects.size() == 1 and invaders.effects[0][1] > 0.0,
         "Expired bursts must be removed while delayed boss bursts keep their timing.")
     invaders._update_effects(0.11)
@@ -345,6 +351,12 @@ func _run() -> void:
         forest.discovery_left == 0.5 and forest.sparks.size() == 22,
         "A new discovery must pause movement and spawn sparks."
     )
+    _check(forest.discovery_pos == Vector2(10, 144),
+        "The discovery flash must stay anchored to the discovered world object.")
+    forest.paused = true
+    forest._process(0.1)
+    _check(forest.discovery_left == 0.5, "Pause must freeze the discovery flash.")
+    forest.paused = false
     forest.discovery_left = 0.2
     forest._discover({"id": "test_shrine", "kind": "shrine", "x": 10.0, "y": 152.0})
     _check(
@@ -678,6 +690,11 @@ func _test_breach() -> void:
         guard.hp == 1 and game.ammo == 23 and game.hit_marker > 0.0,
         "A hitscan shot must hit the aimed guard and consume one round."
     )
+    _check(game.recoil == 0.12, "A shot must start the muzzle flash.")
+    game._set_paused(true)
+    game._physics_process(0.1)
+    _check(game.recoil == 0.12, "Pause must freeze the muzzle flash.")
+    game._set_paused(false)
     game.fire()
     _check(game.ammo == 23, "The fire cooldown must prevent repeated instant shots.")
     game.player.position = game._cell_position(Vector2i(2, 7))
@@ -714,8 +731,10 @@ func _test_breach() -> void:
     )
     game.ammo = 0
     game.fire_cooldown = 0.0
+    game.recoil = 0.0
     game.fire()
     _check(game.ammo == 0, "Empty fire must not create negative ammunition.")
+    _check(game.recoil == 0.0, "Empty fire must not trigger a muzzle flash.")
     game.health = 90
     game.player.position = game._cell_position(Vector2i(5, 11))
     game._update_pickups()

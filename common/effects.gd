@@ -7,7 +7,7 @@ const BURST_FPS := 30.0
 
 
 static func draw_burst(canvas: CanvasItem, pos: Vector2, age: float, tint: Color,
-        scale_factor: float=1.0) -> void:
+    scale_factor: float=1.0) -> void:
     if age < 0.0 or age >= BURST_DURATION:
         return
     var frame := mini(int(age * BURST_FPS), 9)

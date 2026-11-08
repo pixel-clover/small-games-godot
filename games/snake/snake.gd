@@ -237,7 +237,6 @@ func _unhandled_input(event: InputEvent) -> void:
         return
     if paused:
         return
-    sparkle_left = maxf(0.0, sparkle_left - delta)
     var new_dir := direction
     if event.is_action_pressed("ui_up"):
         new_dir = Vector2i.UP
@@ -269,6 +268,7 @@ func step_time() -> float:
 func _process(delta: float) -> void:
     if paused:
         return
+    sparkle_left = maxf(0.0, sparkle_left - delta)
     if game_over:
         _update_death(delta)
         queue_redraw()

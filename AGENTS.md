@@ -56,7 +56,8 @@ Priorities, in order:
 ## Behavior to Preserve
 
 - All games must include a return to menu shortcut via `ui_cancel` (Esc).
-- Preserve procedural drawing where practical. Compact generated binary images are allowed; keep their generation source. Do not introduce binary audio assets.
+- Preserve procedural drawing where practical. Compact generated binary images are allowed; keep their generation source. Do not introduce binary
+  audio assets.
 - Save data must remain backward-compatible inside `user://arcade.cfg`.
 - Each game runs in its own coordinate space: arcade titles use 640x480 canvas items; Forest Walk uses a 320x180 SubViewport with integer scaling.
 - Keep audio synthesis deterministic and bounded in memory. Reuse `AudioStreamPlayer` nodes through pooling.
