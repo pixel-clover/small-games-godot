@@ -86,6 +86,12 @@ Everything, including the station, enemy sprites, weapons, and sound effects are
 
 ---
 
+### Generated Effects
+
+See [Generated Effects](docs/effects.md) for asset sources, size limits, and regeneration instructions.
+
+---
+
 ### Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) to learn how to contribute.

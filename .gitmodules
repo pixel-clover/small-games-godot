@@ -1,0 +1,4 @@
+[submodule "external/pixelfx"]
+	path = external/pixelfx
+	url = https://github.com/patch-gg/pixelfx
+	shallow = true

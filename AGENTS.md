@@ -10,7 +10,7 @@ The project emphasizes self-contained games, procedural art and audio generation
 Priorities, in order:
 
 1. Responsive arcade gameplay and steady 60 FPS performance.
-2. Procedural asset generation in GDScript without external sprite sheets or sound files.
+2. Procedural assets, with compact generated image assets allowed. Keep generation source and avoid large asset packs.
 3. Modular organization separating games into distinct folders under `games/`.
 4. Small, clear changes that fit the existing GDScript code.
 
@@ -56,7 +56,7 @@ Priorities, in order:
 ## Behavior to Preserve
 
 - All games must include a return to menu shortcut via `ui_cancel` (Esc).
-- Preserve procedural drawing in `_draw()` or Image manipulation. Do not introduce binary image or audio assets.
+- Preserve procedural drawing where practical. Compact generated binary images are allowed; keep their generation source. Do not introduce binary audio assets.
 - Save data must remain backward-compatible inside `user://arcade.cfg`.
 - Each game runs in its own coordinate space: arcade titles use 640x480 canvas items; Forest Walk uses a 320x180 SubViewport with integer scaling.
 - Keep audio synthesis deterministic and bounded in memory. Reuse `AudioStreamPlayer` nodes through pooling.

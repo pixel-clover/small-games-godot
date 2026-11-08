@@ -226,6 +226,23 @@ func _run() -> void:
     invaders.fire_cd = 0.14
     invaders._kill_alien(0)
     _check(invaders.fire_cd == 0.0, "Close kills must reset rapid-fire cooldown.")
+    _check(invaders.effects.size() == 1, "An alien kill must create a burst.")
+    var burst_image := InvadersGame.BURST_TEXTURE.get_image()
+    _check(burst_image.get_size() == Vector2i(192, 144),
+        "The burst atlas must contain four columns of 48-pixel frames.")
+    _check(burst_image.get_region(Rect2i(0, 0, 48, 48)).get_used_rect().has_area() and
+        not burst_image.get_region(Rect2i(48, 96, 48, 48)).get_used_rect().has_area(),
+        "The burst must start visible and finish transparent.")
+    invaders.paused = true
+    invaders._process(0.1)
+    _check(invaders.effects[0][1] == 0.0, "Pause must freeze the burst animation.")
+    invaders.paused = false
+    invaders.effects.append([Vector2.ZERO, -0.1, Color.WHITE])
+    invaders._update_effects(InvadersGame.BURST_DURATION)
+    _check(invaders.effects.size() == 1 and invaders.effects[0][1] > 0.0,
+        "Expired bursts must be removed while delayed boss bursts keep their timing.")
+    invaders._update_effects(0.11)
+    _check(invaders.effects.is_empty(), "Delayed bursts must also expire.")
     invaders._build_bunkers()
     _check(
         invaders._bunker_color(0) == Color.LIME_GREEN.darkened(0.2),
