@@ -2,10 +2,7 @@ extends Node2D
 
 const W := 640
 const H := 480
-const BURST_TEXTURE := preload("res://games/space_invaders/assets/invader-burst.png")
-const BURST_SIZE := Vector2(48, 48)
-const BURST_FPS := 30.0
-const BURST_DURATION := 0.3
+const Effects := preload("res://common/effects.gd")
 const PLAYER_Y := 440.0
 const PLAYER_W := 30.0
 const PLAYER_H := 16.0
@@ -381,7 +378,7 @@ func _process(delta: float) -> void:
 func _update_effects(delta: float) -> void:
     for i in range(effects.size() - 1, -1, -1):
         effects[i][1] += delta
-        if effects[i][1] >= BURST_DURATION:
+        if effects[i][1] >= Effects.BURST_DURATION:
             effects.remove_at(i)
     for i in range(texts.size() - 1, -1, -1):
         texts[i][1] += delta
@@ -893,14 +890,7 @@ func _draw() -> void:
 
     # Explosions
     for e in effects:
-        var age: float = e[1]
-        if age < 0.0:
-            continue
-        var frame := mini(int(age * BURST_FPS), 9)
-        var source := Rect2(Vector2(frame % 4, floori(frame / 4.0)) * BURST_SIZE, BURST_SIZE)
-        var p: Vector2 = e[0]
-        draw_texture_rect_region(BURST_TEXTURE, Rect2(p - BURST_SIZE / 2.0, BURST_SIZE), source,
-            e[2])
+        Effects.draw_burst(self, e[0], e[1], e[2])
 
     # Floating score texts
     for t in texts:

@@ -1,5 +1,6 @@
 extends Node2D
 
+const Effects := preload("res://common/effects.gd")
 const CELL := 20
 const GRID := Vector2i(32, 24)  # 640x480 playfield
 const STEP_TIME := 0.12
@@ -68,6 +69,7 @@ var sounds: Dictionary = {}
 
 
 func _ready() -> void:
+    texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     get_window().size = GRID * CELL
     wrap = bool(Save.get_value("snake", "wrap", false))
     for i in 4:
@@ -235,6 +237,7 @@ func _unhandled_input(event: InputEvent) -> void:
         return
     if paused:
         return
+    sparkle_left = maxf(0.0, sparkle_left - delta)
     var new_dir := direction
     if event.is_action_pressed("ui_up"):
         new_dir = Vector2i.UP
@@ -274,7 +277,6 @@ func _process(delta: float) -> void:
         return
     move_age += delta
     swallow_age += delta
-    sparkle_left = maxf(0.0, sparkle_left - delta)
     # Timed things
     if combo_left > 0.0:
         combo_left -= delta
@@ -337,6 +339,9 @@ func step() -> void:
         end_game()
         return
     snake.push_front(head)
+    if growing or (power_active and head == power_pos):
+        sparkle_pos = Vector2(head * CELL) + Vector2.ONE * CELL / 2.0
+        sparkle_left = Effects.BURST_DURATION
     if head == food:
         combo = mini(combo + 1, MAX_COMBO) if combo_left > 0.0 else 1
         combo_left = COMBO_TIME
@@ -391,7 +396,7 @@ func _reward_near_miss() -> void:
             near_rewarded = true
             add_points(2)
             sparkle_pos = Vector2(head * CELL) + Vector2.ONE * CELL / 2.0
-            sparkle_left = 0.35
+            sparkle_left = Effects.BURST_DURATION
             play("near")
             return
 
@@ -472,10 +477,8 @@ func _draw() -> void:
             draw_rect(rect.grow(1.0), Color.MEDIUM_ORCHID if double_left > 0.0
             else Color.DODGER_BLUE, false, 1.5)
     if sparkle_left > 0.0:
-        for k in 6:
-            var p := sparkle_pos + Vector2.RIGHT.rotated(k * TAU / 6.0) * \
-                (1.0 - sparkle_left / 0.35) * 22.0
-            draw_line(p - Vector2(2, 0), p + Vector2(2, 0), Color(1, 1, 0.6, sparkle_left / 0.35))
+        Effects.draw_burst(self, sparkle_pos, Effects.BURST_DURATION - sparkle_left,
+            Color(1, 1, 0.6))
     # HUD
     var mode := "Wrap" if wrap else "Walls"
     var controller := not Input.get_connected_joypads().is_empty()

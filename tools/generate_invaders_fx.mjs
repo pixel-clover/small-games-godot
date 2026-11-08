@@ -19,7 +19,7 @@ assert(rendered.frames[0].clear.some((value, i) => i % 4 === 3 && value > 0));
 assert(rendered.frames.at(-1).clear.every((value) => value === 0));
 assert(sheet.png.length < 16 * 1024, "Keep the burst sheet below 16 KiB.");
 assert.deepEqual(sheet.png, spriteSheet(fx, renderFrames(fx), "invader-burst").png);
-const assets = resolve(root, "games/space_invaders/assets");
+const assets = resolve(root, "common/effects");
 const previews = resolve(root, "tmp/fx-preview");
 mkdirSync(assets, { recursive: true });
 mkdirSync(previews, { recursive: true });

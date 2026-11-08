@@ -5,6 +5,8 @@ extends Node2D
 ## On top of that: biomes, discoverable things + journal, lantern fuel and a reactive world.
 
 const VW := 320
+const Effects := preload("res://common/effects.gd")
+const DISCOVERY_TIME := 0.5
 const VH := 180
 const GROUND_TOP := 120
 const Y_MIN := 136.0
@@ -121,6 +123,7 @@ var flick := 1.0
 var lantern_offset := Vector2.ZERO
 var lantern_velocity := Vector2.ZERO
 var discovery_left := 0.0
+var discovery_pos := Vector2.ZERO
 var hud_alpha := 1.0
 var journal_amount := 0.0
 
@@ -243,6 +246,7 @@ func _ready() -> void:
     _build_art()
     _build_particles()
     overlay = Node2D.new()
+    overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     var mat := CanvasItemMaterial.new()
     mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
     overlay.material = mat
@@ -920,7 +924,8 @@ func _discover(o: Dictionary) -> void:
     if found_ids.has(id):
         return
     found_ids[id] = true
-    discovery_left = 0.5
+    discovery_left = DISCOVERY_TIME
+    discovery_pos = Vector2(float(o["x"]), float(o["y"]) - 8.0)
     facing = 1 if float(o["x"]) >= player_pos.x else -1
     vel = Vector2.ZERO
     moving = false
@@ -1561,6 +1566,10 @@ func _draw_overlay() -> void:
     for r in [46.0, 38.0, 30.0, 23.0, 17.0, 12.0, 7.0]:
         o.draw_circle(lp, maxf(r * glow_k, 2.0), Color(1.0, 0.7, 0.32, 0.045 * g))
     # sparkles
+    if discovery_left > 0.0:
+        var pos := Vector2(floorf(discovery_pos.x - cam_x + VW / 2.0), discovery_pos.y)
+        var age := (1.0 - discovery_left / DISCOVERY_TIME) * Effects.BURST_DURATION
+        Effects.draw_burst(o, pos, age, Color(1.0, 0.92, 0.6, 0.7), 0.75)
     for s: Dictionary in sparks:
         var u := float(s["life"]) / float(s["max"])
         var c: Color = s["c"]

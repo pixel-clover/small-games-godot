@@ -5,6 +5,7 @@ extends Node3D
 enum State {TITLE, PLAYING, WON, DEAD}
 
 const Art := preload("res://games/neon_breach/breach_art.gd")
+const Effects := preload("res://common/effects.gd")
 const CELL := 2.5
 const LEVEL := [
     "################",
@@ -101,6 +102,7 @@ func _ready() -> void:
     var layer := CanvasLayer.new()
     add_child(layer)
     hud = Node2D.new()
+    hud.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     layer.add_child(hud)
     hud.draw.connect(_draw_hud)
     guard_textures = [Art.guard(), Art.guard(true)]
@@ -616,21 +618,10 @@ func _draw_hud() -> void:
             hud.draw_rect(Rect2(gun + Vector2(-8, -110), Vector2(16, 5)), Color("edc171"))
             hud.draw_rect(Rect2(gun + Vector2(-43, -14), Vector2(27, 35)), Color("a47759"))
             hud.draw_rect(Rect2(gun + Vector2(16, -14), Vector2(27, 35)), Color("a47759"))
-            if recoil > 0.075:
+            if recoil > 0.0:
                 var tip := gun + Vector2(0, -115)
-                hud.draw_colored_polygon(
-                    PackedVector2Array(
-                        [
-                            tip + Vector2(-30, 0),
-                            tip + Vector2(-8, -12),
-                            tip + Vector2(0, -36),
-                            tip + Vector2(9, -12),
-                            tip + Vector2(31, -3),
-                            tip + Vector2(8, 9)
-                        ]
-                    ),
-                    Color("ffd581")
-                )
+                var flash_age := (1.0 - recoil / 0.12) * Effects.BURST_DURATION
+                Effects.draw_burst(hud, tip, flash_age, Color("ffd581"), 1.5)
             if toast_left > 0.0:
                 _center(toast, 67, 15, Color("eed28a"))
     if damage_flash > 0.0:
