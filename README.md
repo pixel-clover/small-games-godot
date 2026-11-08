@@ -13,7 +13,7 @@ A collection of retro arcade games and ambient art experiments built in Godot ga
 #### A. Clone the project
 
 ```bash
-git clone --depth=1 https://github.com/pixel-clover/small-games-godot.git
+git clone --depth=1 --recursive https://github.com/pixel-clover/small-games-godot.git
 cd small-games-godot
 ```
 
